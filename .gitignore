@@ -1,0 +1,8 @@
+target
+web/*
+!web/
+!web/index.html
+
+buw.sh
+buwr.sh
+run.sh

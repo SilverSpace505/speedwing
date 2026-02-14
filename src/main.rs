@@ -1,12 +1,15 @@
 use std::f32::consts::PI;
 
 use bevy::{
-    asset::AssetMetaCheck,
+    asset::{AssetMetaCheck, RenderAssetUsages},
+    color::palettes::css::WHITE,
     input::mouse::AccumulatedMouseMotion,
+    mesh::Indices,
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowResolution},
 };
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
+use noise::{NoiseFn, Perlin};
 
 fn main() {
     App::new()
@@ -28,15 +31,19 @@ fn main() {
         )
         .add_plugins(FixPointerUnlockPlugin)
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
+        .insert_resource(Grid::new(100., 100., 100, 100, 10.))
+        .init_gizmo_group::<MovementGizmoGroup>()
         .add_systems(Startup, (setup, configure_gizmos))
         .add_systems(
             Update,
             (
                 player_movement,
                 apply_velocity,
+                camera_follow_player,
                 touch_system,
                 handle_cursor_lock,
                 handle_mouse_movement,
+                draw_dots,
                 update_gizmo_config,
                 render_movement,
             ),
@@ -60,7 +67,80 @@ struct CursorMove {
 #[derive(Component)]
 struct MainCamera;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+#[derive(Default, Reflect, GizmoConfigGroup)]
+struct MovementGizmoGroup;
+
+#[derive(Resource)]
+struct Grid {
+    x: f32,
+    y: f32,
+    width: usize,
+    height: usize,
+    spacing: f32,
+    data: Vec<f32>,
+}
+
+impl Grid {
+    fn new(x: f32, y: f32, width: usize, height: usize, spacing: f32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+            spacing,
+            data: vec![0.; width * height],
+        }
+    }
+
+    fn get(&self, x: usize, y: usize) -> Option<f32> {
+        if x < self.width && y < self.height {
+            Some(self.data[y * self.width + x])
+        } else {
+            None
+        }
+    }
+
+    fn get_world(&self, x: f32, y: f32) -> Option<f32> {
+        let gx = ((x - self.x) / self.spacing).floor();
+        let gy = ((y - self.y) / self.spacing).floor();
+        if gx < 0. || gy < 0. {
+            return None;
+        }
+        self.get(gx as usize, gy as usize)
+    }
+
+    fn set(&mut self, x: usize, y: usize, v: f32) {
+        if x < self.width && y < self.height {
+            self.data[y * self.width + x] = v.clamp(0., 1.)
+        }
+    }
+
+    fn draw_dots(&self, mut gizmos: Gizmos) {
+        for x in 0..self.width {
+            for y in 0..self.height {
+                if let Some(v) = self.get(x, y) {
+                    let color = Color::linear_rgba(1., 1., 1., v);
+                    gizmos.circle_2d(
+                        Vec2::new(
+                            self.x + x as f32 * self.spacing,
+                            self.y + y as f32 * self.spacing,
+                        ),
+                        self.spacing / 5.,
+                        color,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut grid: ResMut<Grid>,
+) {
     commands.spawn((Camera2d::default(), MainCamera));
 
     commands
@@ -118,6 +198,57 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 TextColor(Color::WHITE),
             ));
         });
+
+    let positions = vec![
+        [0.0, 0.0, 0.0],
+        [100.0, 0.0, 0.0],
+        [50.0, 100.0, 0.0],
+        [100.0, 0.0, 0.0],
+        [200.0, 0.0, 0.0],
+        [150.0, 100.0, 0.0],
+        [200.0, 0.0, 0.0],
+        [300.0, 0.0, 0.0],
+        [250.0, 100.0, 0.0],
+    ];
+
+    let colours = vec![
+        [1.0, 0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [0.0, 0.0, 1.0, 1.0],
+    ];
+
+    let indices = Indices::U32(vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+    let mut mesh = Mesh::new(
+        bevy::mesh::PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+    mesh.insert_indices(indices);
+
+    commands.spawn((
+        Mesh2d(meshes.add(mesh)),
+        MeshMaterial2d(materials.add(Color::from(WHITE))),
+        Transform::default(),
+    ));
+
+    let perlin = Perlin::new(42);
+    let scale = 0.05;
+
+    for x in 0..grid.width {
+        for y in 0..grid.height {
+            let v = perlin.get([x as f64 * scale, y as f64 * scale]);
+            let nv = (v + 1.) / 2.;
+            grid.set(x, y, nv.powf(5.) as f32);
+        }
+    }
 }
 
 fn player_movement(
@@ -166,36 +297,41 @@ fn player_movement(
 }
 
 fn apply_velocity(
-    mut query: Query<(&mut Transform, &mut Velocity, &CursorMove)>,
+    mut query: Query<(&mut Transform, &Velocity, &CursorMove)>,
     time: Res<Time>,
-    window_query: Query<&Window>,
+    grid: Res<Grid>,
+    // window_query: Query<&Window>,
 ) {
-    let Ok(window) = window_query.single() else {
-        return;
-    };
+    // let Ok(window) = window_query.single() else {
+    //     return;
+    // };
 
-    let size = Vec2::new(window.width(), window.height());
+    // let size = Vec2::new(window.width(), window.height());
 
-    for (mut transform, mut velocity, cursor_move) in &mut query {
+    for (mut transform, velocity, cursor_move) in &mut query {
         transform.translation += velocity.value * time.delta_secs();
 
-        if transform.translation.x > size.x / 2. {
-            transform.translation.x = size.x / 2.;
-            velocity.value.x *= -1.;
-        }
-        if transform.translation.x < -size.x / 2. {
-            transform.translation.x = -size.x / 2.;
-            velocity.value.x *= -1.;
+        if let Some(v) = grid.get_world(transform.translation.x, transform.translation.y) {
+            transform.translation -= velocity.value * time.delta_secs() * v * 2.;
         }
 
-        if transform.translation.y > size.y / 2. {
-            transform.translation.y = size.y / 2.;
-            velocity.value.y *= -1.;
-        }
-        if transform.translation.y < -size.y / 2. {
-            transform.translation.y = -size.y / 2.;
-            velocity.value.y *= -1.;
-        }
+        // if transform.translation.x > size.x / 2. {
+        //     transform.translation.x = size.x / 2.;
+        //     velocity.value.x *= -1.;
+        // }
+        // if transform.translation.x < -size.x / 2. {
+        //     transform.translation.x = -size.x / 2.;
+        //     velocity.value.x *= -1.;
+        // }
+
+        // if transform.translation.y > size.y / 2. {
+        //     transform.translation.y = size.y / 2.;
+        //     velocity.value.y *= -1.;
+        // }
+        // if transform.translation.y < -size.y / 2. {
+        //     transform.translation.y = -size.y / 2.;
+        //     velocity.value.y *= -1.;
+        // }
 
         if cursor_move.value.length() < 0.1 {
             continue;
@@ -209,6 +345,25 @@ fn apply_velocity(
             (1. - 0.002_f32.powf(time.delta_secs())) * (0.2 + cursor_move.value.length() * 1.3),
         );
     }
+}
+
+fn camera_follow_player(
+    player_query: Query<&Transform, (With<Player>, Without<MainCamera>)>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    time: Res<Time>,
+) {
+    let Ok(player_transform) = player_query.single() else {
+        return;
+    };
+
+    let Ok(mut camera_transform) = camera_query.single_mut() else {
+        return;
+    };
+
+    camera_transform.translation = camera_transform.translation.lerp(
+        player_transform.translation,
+        1. - 0.01_f32.powf(time.delta_secs() * 3.),
+    );
 }
 
 fn touch_system(
@@ -271,8 +426,11 @@ fn handle_mouse_movement(
 }
 
 fn configure_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
+    let (config, _) = config_store.config_mut::<MovementGizmoGroup>();
+    config.line.width = 8.;
+
     let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.line.width = 4.;
+    config.line.width = 2.;
 }
 
 fn update_gizmo_config(
@@ -283,13 +441,13 @@ fn update_gizmo_config(
         return;
     };
 
-    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.line.width = 4. * cursor_move.value.length();
+    let (config, _) = config_store.config_mut::<MovementGizmoGroup>();
+    config.line.width = 8. * cursor_move.value.length();
 }
 
 fn render_movement(
     mut query: Query<(&Transform, &mut CursorMove), With<Player>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<MovementGizmoGroup>,
 ) {
     let Ok((pos, cursor_move)) = query.single_mut() else {
         return;
@@ -313,13 +471,17 @@ fn render_movement(
             - cursor_move.value * arrow_size * arrow
             - cross * arrow_size * arrow,
         pos.translation.xy() + cursor_move.value * arrow_size,
-        Color::linear_rgb(1., 1., 1.),
+        Color::linear_rgba(1., 1., 1., cursor_move.value.length() / 2.),
     );
     gizmos.line_2d(
         pos.translation.xy() + cursor_move.value * arrow_size
             - cursor_move.value * arrow_size * arrow
             + cross * arrow_size * arrow,
         pos.translation.xy() + cursor_move.value * arrow_size,
-        Color::linear_rgb(1., 1., 1.),
+        Color::linear_rgba(1., 1., 1., cursor_move.value.length() / 2.),
     );
+}
+
+fn draw_dots(gizmos: Gizmos, grid: Res<Grid>) {
+    grid.draw_dots(gizmos);
 }

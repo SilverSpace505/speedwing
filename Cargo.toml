@@ -28,4 +28,3 @@ strip = true
 inherits = "release"
 opt-level = "z"
 strip = "debuginfo"
-

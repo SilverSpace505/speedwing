@@ -12,6 +12,15 @@ pub struct Player {
     pub normal: Vec2,
 }
 
+const POINTS: [(f32, f32); 6] = [
+    (0., 0.),
+    (-125., -125.),
+    (125., -125.),
+    (0., 175.),
+    (-95., 25.),
+    (95., 25.),
+];
+
 impl Player {
     pub fn spawn(commands: &mut Commands<'_, '_>, asset_server: &Res<AssetServer>) {
         commands.spawn(Player::bundle()).with_children(|parent| {
@@ -62,12 +71,14 @@ impl Player {
         grid.generate(
             42,
             0.05,
-            (
-                (time.elapsed_secs() / 5.).into(),
-                (time.elapsed_secs() / 10.).into(),
-            ),
+            match state.moving {
+                true => (
+                    (time.elapsed_secs() / 5.).into(),
+                    (time.elapsed_secs() / 10.).into(),
+                ),
+                false => (0., 0.),
+            },
         );
-        // grid.generate(42, 0.05, (0., 0.));
 
         let Ok((mut player, mut velocity, cursor_move, transform)) = query.single_mut() else {
             return;
@@ -108,6 +119,10 @@ impl Player {
             state.debug = !state.debug;
         }
 
+         if keyboard_input.just_pressed(KeyCode::KeyM) {
+            state.moving = !state.moving;
+        }
+
         if direction.length() > 0.0 {
             velocity.0 += direction * acceleration * time.delta_secs();
         }
@@ -118,52 +133,64 @@ impl Player {
             velocity.0 = velocity.0.normalize() * max_speed;
         }
     }
+    fn is_colliding(
+        &self,
+        grid: &Res<Grid>,
+        threshold: f32,
+        transform: &Transform,
+    ) -> Option<Vec3> {
+        for offset in POINTS {
+            let offset = transform.transform_point(Vec3::new(offset.0, offset.1, 0.));
+            if grid
+                .get_world(offset.x, offset.y)
+                .is_some_and(|v| v > threshold)
+            {
+                return Some(offset);
+            }
+        }
+        None
+    }
     pub fn apply_velocity(
-        mut query: Query<(&mut Transform, &mut Velocity, &CursorMove), With<Player>>,
+        mut query: Query<(&Player, &mut Transform, &mut Velocity, &CursorMove)>,
         time: Res<Time>,
         grid: Res<Grid>,
+        state: Res<State>
     ) {
-        let threshold = get_threshold(time.elapsed_secs());
+        let threshold = get_threshold(time.elapsed_secs(), &state);
+        let Ok((player, mut transform, mut velocity, cursor_move)) = query.single_mut() else {
+            return;
+        };
 
-        for (mut transform, mut velocity, cursor_move) in &mut query {
+        transform.translation += velocity.0 * time.delta_secs();
+
+        if player.is_colliding(&grid, threshold, &transform).is_some()
+            && let Some(normal) = grid.get_normal_world(transform.translation.x, transform.translation.y)
+        {
+            transform.translation -= velocity.0 * time.delta_secs();
+
+            let normal = Vec3::new(normal.0, normal.1, 0.);
+
+            while player.is_colliding(&grid, threshold, &transform).is_some() {
+                transform.translation -= normal * 0.1;
+            }
+
+            let change = -velocity.0.dot(normal) * normal;
+            velocity.0 = velocity.0 + change;
+
             transform.translation += velocity.0 * time.delta_secs();
-
-            if let Some(v) = grid.get_world(transform.translation.x, transform.translation.y) {
-                if v >= threshold {
-                    if let Some(normal) =
-                        grid.get_normal_world(transform.translation.x, transform.translation.y)
-                    {
-                        transform.translation -= velocity.0 * time.delta_secs();
-
-                        let normal = Vec3::new(normal.0, normal.1, 0.);
-
-                        while grid
-                            .get_world(transform.translation.x, transform.translation.y)
-                            .is_some_and(|v| v > threshold)
-                        {
-                            transform.translation -= normal * 0.1;
-                        }
-
-                        let change = -velocity.0.dot(normal) * normal;
-                        velocity.0 = velocity.0 + change;
-
-                        transform.translation += velocity.0 * time.delta_secs();
-                    }
-                }
-            }
-
-            if cursor_move.0.length() < 0.1 {
-                continue;
-            }
-
-            let target_angle = cursor_move.0.y.atan2(cursor_move.0.x) - PI / 2.;
-            let target_rotation = Quat::from_rotation_z(target_angle);
-
-            transform.rotation = transform.rotation.slerp(
-                target_rotation,
-                (1. - 0.002_f32.powf(time.delta_secs())) * (0.2 + cursor_move.0.length() * 1.3),
-            );
         }
+
+        if cursor_move.0.length() < 0.1 {
+            return;
+        }
+
+        let target_angle = cursor_move.0.y.atan2(cursor_move.0.x) - PI / 2.;
+        let target_rotation = Quat::from_rotation_z(target_angle);
+
+        transform.rotation = transform.rotation.slerp(
+            target_rotation,
+            (1. - 0.002_f32.powf(time.delta_secs())) * (0.2 + cursor_move.0.length() * 1.3),
+        );
     }
     pub fn camera_follow(
         player_query: Query<&Transform, (With<Player>, Without<MainCamera>)>,
@@ -182,6 +209,16 @@ impl Player {
             player_transform.translation,
             1. - 0.01_f32.powf(time.delta_secs() * 3.),
         );
+    }
+    pub fn draw_points(&self, gizmos: &mut Gizmos, transform: &Transform) {
+        for offset in POINTS {
+            let offset = transform.transform_point(Vec3::new(offset.0, offset.1, 0.));
+            gizmos.circle_2d(
+                Vec2::new(offset.x, offset.y),
+                2.5,
+                Color::linear_rgba(0., 1., 0., 0.5),
+            );
+        }
     }
 }
 

@@ -28,7 +28,8 @@ pub fn update_gizmo_config(
 
 pub fn render_movement(
     mut query: Query<(&Player, &Transform, &mut CursorMove, &Velocity), With<Player>>,
-    mut gizmos: Gizmos<MovementGizmoGroup>,
+    mut movement_gizmos: Gizmos<MovementGizmoGroup>,
+    mut gizmos: Gizmos,
     state: Res<State>,
 ) {
     let Ok((player, pos, cursor_move, velocity)) = query.single_mut() else {
@@ -36,7 +37,7 @@ pub fn render_movement(
     };
 
     draw_arrow(
-        &mut gizmos,
+        &mut movement_gizmos,
         pos.translation.xy(),
         cursor_move.0 * 100.,
         10.,
@@ -46,7 +47,7 @@ pub fn render_movement(
 
     if state.debug {
         draw_arrow(
-            &mut gizmos,
+            &mut movement_gizmos,
             pos.translation.xy(),
             player.normal * 100.,
             10.,
@@ -55,13 +56,15 @@ pub fn render_movement(
         );
 
         draw_arrow(
-            &mut gizmos,
+            &mut movement_gizmos,
             pos.translation.xy(),
             velocity.0.xy() / 10.,
             10.,
             velocity.0.length() / 1000.,
             Color::linear_rgba(0., 1., 0., velocity.0.length() / 1000.),
         );
+
+        player.draw_points(&mut gizmos, &pos);
     }
 }
 
@@ -94,5 +97,5 @@ pub fn draw_dots(mut gizmos: Gizmos, grid: Res<Grid>, time: Res<Time>, state: Re
     if state.debug {
         grid.draw_dots(&mut gizmos);
     }
-    grid.draw_segments(get_threshold(time.elapsed_secs()), true, &mut gizmos);
+    grid.draw_segments(get_threshold(time.elapsed_secs(), &state), true, &mut gizmos);
 }

@@ -10,3 +10,4 @@ The game is deployed on https://yip.silverspace.io
 - Left click to lock mouse
 - ESC to unlock mouse
 - ; to toggle debug mode
+- M to toggle moving map

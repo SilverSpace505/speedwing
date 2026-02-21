@@ -42,7 +42,7 @@ fn main() {
         .add_plugins(FixPointerUnlockPlugin)
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
         .insert_resource(Grid::new(100., 100., 100, 100, 10.))
-        .insert_resource(State { debug: false })
+        .insert_resource(State { debug: false, moving: false })
         .init_gizmo_group::<MovementGizmoGroup>()
         .add_systems(Startup, (setup, configure_gizmos))
         .add_systems(

@@ -163,16 +163,21 @@ impl Player {
         threshold: f32,
         transform: &Transform,
     ) -> Option<Vec3> {
+        let mut normal = Vec3::ZERO;
         for offset in POINTS {
             let offset = transform.transform_point(Vec3::new(offset.0, offset.1, 0.));
             if grid
                 .get_world(offset.x, offset.y)
                 .is_some_and(|v| v > threshold)
+                && let Some(pnormal) = grid.get_normal_world(offset.x, offset.y)
             {
-                return Some(offset);
+                normal += Vec3::new(pnormal.0, pnormal.1, 0.);
             }
         }
-        None
+        match normal.length() > 0. {
+            true => Some(normal.normalize_or_zero()),
+            false => None,
+        }
     }
     pub fn apply_velocity(
         mut query: Query<(&Player, &mut Transform, &mut Velocity, &CursorMove)>,
@@ -187,16 +192,15 @@ impl Player {
 
         transform.translation += velocity.0 * time.delta_secs();
 
-        if player.is_colliding(&grid, threshold, &transform).is_some()
-            && let Some(normal) =
-                grid.get_normal_world(transform.translation.x, transform.translation.y)
-        {
+        if let Some(normal) = player.is_colliding(&grid, threshold, &transform) {
             transform.translation -= velocity.0 * time.delta_secs();
 
-            let normal = Vec3::new(normal.0, normal.1, 0.);
+            let mut dir = 0.05;
 
-            while player.is_colliding(&grid, threshold, &transform).is_some() {
-                transform.translation -= normal * 0.1;
+            while let Some(normal) = player.is_colliding(&grid, threshold, &transform) {
+                transform.translation -= normal * dir;
+                dir = -dir - 0.05 * dir.signum();
+                transform.translation += normal * dir;
             }
 
             let change = -velocity.0.dot(normal) * normal;
@@ -218,11 +222,11 @@ impl Player {
         );
     }
     pub fn camera_follow(
-        player_query: Query<&Transform, (With<Player>, Without<MainCamera>)>,
+        player_query: Query<(&Transform, &Velocity), (With<Player>, Without<MainCamera>)>,
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
     ) {
-        let Ok(player_transform) = player_query.single() else {
+        let Ok((player_transform, velocity)) = player_query.single() else {
             return;
         };
 
@@ -233,6 +237,11 @@ impl Player {
         camera_transform.translation = camera_transform.translation.lerp(
             player_transform.translation,
             1. - 0.01_f32.powf(time.delta_secs() * 3.),
+        );
+
+        camera_transform.scale = camera_transform.scale.lerp(
+            Vec3::splat(1. + 0.0002 * velocity.0.length()),
+            1. - 0.01_f32.powf(time.delta_secs()),
         );
     }
     pub fn draw_points(&self, gizmos: &mut Gizmos, transform: &Transform) {

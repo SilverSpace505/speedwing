@@ -96,6 +96,6 @@ pub fn draw_arrow(
 pub fn draw_dots(mut gizmos: Gizmos, grid: Res<Grid>, time: Res<Time>, state: Res<State>) {
     if state.debug {
         grid.draw_dots(&mut gizmos);
+        grid.draw_segments(get_threshold(time.elapsed_secs(), &state), true, &mut gizmos);
     }
-    grid.draw_segments(get_threshold(time.elapsed_secs(), &state), true, &mut gizmos);
 }

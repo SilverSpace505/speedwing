@@ -16,7 +16,7 @@ const POINTS: [(f32, f32); 6] = [
     (0., 0.),
     (-125., -125.),
     (125., -125.),
-    (0., 175.),
+    (0., 200.),
     (-95., 25.),
     (95., 25.),
 ];
@@ -67,6 +67,7 @@ impl Player {
         time: Res<Time>,
         mut grid: ResMut<Grid>,
         mut state: ResMut<State>,
+        mut meshes: ResMut<Assets<Mesh>>,
     ) {
         grid.generate(
             42,
@@ -79,6 +80,12 @@ impl Player {
                 false => (0., 0.),
             },
         );
+        if state.moving {
+            grid.set_mesh(
+                &mut meshes,
+                grid.gen_attributes(get_threshold(time.elapsed_secs(), &state), true),
+            );
+        }
 
         let Ok((mut player, mut velocity, cursor_move, transform)) = query.single_mut() else {
             return;
@@ -119,8 +126,25 @@ impl Player {
             state.debug = !state.debug;
         }
 
-         if keyboard_input.just_pressed(KeyCode::KeyM) {
+        if keyboard_input.just_pressed(KeyCode::KeyM) {
             state.moving = !state.moving;
+            if !state.moving {
+                grid.generate(
+                    42,
+                    0.05,
+                    match state.moving {
+                        true => (
+                            (time.elapsed_secs() / 5.).into(),
+                            (time.elapsed_secs() / 10.).into(),
+                        ),
+                        false => (0., 0.),
+                    },
+                );
+                grid.set_mesh(
+                    &mut meshes,
+                    grid.gen_attributes(get_threshold(time.elapsed_secs(), &state), true),
+                );
+            }
         }
 
         if direction.length() > 0.0 {
@@ -154,7 +178,7 @@ impl Player {
         mut query: Query<(&Player, &mut Transform, &mut Velocity, &CursorMove)>,
         time: Res<Time>,
         grid: Res<Grid>,
-        state: Res<State>
+        state: Res<State>,
     ) {
         let threshold = get_threshold(time.elapsed_secs(), &state);
         let Ok((player, mut transform, mut velocity, cursor_move)) = query.single_mut() else {
@@ -164,7 +188,8 @@ impl Player {
         transform.translation += velocity.0 * time.delta_secs();
 
         if player.is_colliding(&grid, threshold, &transform).is_some()
-            && let Some(normal) = grid.get_normal_world(transform.translation.x, transform.translation.y)
+            && let Some(normal) =
+                grid.get_normal_world(transform.translation.x, transform.translation.y)
         {
             transform.translation -= velocity.0 * time.delta_secs();
 
@@ -216,7 +241,7 @@ impl Player {
             gizmos.circle_2d(
                 Vec2::new(offset.x, offset.y),
                 2.5,
-                Color::linear_rgba(0., 1., 0., 0.5),
+                Color::linear_rgba(1., 0., 0., 0.8),
             );
         }
     }

@@ -5,17 +5,13 @@ mod player;
 mod render;
 
 use bevy::{
-    asset::{AssetMetaCheck, RenderAssetUsages},
-    color::palettes::css::WHITE,
-    mesh::Indices,
-    prelude::*,
-    window::WindowResolution,
+    asset::{AssetMetaCheck, RenderAssetUsages}, color::palettes::css::WHITE, mesh::Indices, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution
 };
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
 
 use crate::{
     common::{MainCamera, MovementGizmoGroup, State},
-    grid::Grid,
+    grid::{Grid, GridMaterial},
     input::{handle_cursor_lock, handle_mouse_movement, touch_system},
     player::Player,
     render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config},
@@ -39,10 +35,13 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(FixPointerUnlockPlugin)
+        .add_plugins((FixPointerUnlockPlugin, Material2dPlugin::<GridMaterial>::default()))
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
         .insert_resource(Grid::new(100., 100., 100, 100, 10.))
-        .insert_resource(State { debug: false, moving: false })
+        .insert_resource(State {
+            debug: false,
+            moving: false,
+        })
         .init_gizmo_group::<MovementGizmoGroup>()
         .add_systems(Startup, (setup, configure_gizmos))
         .add_systems(
@@ -70,6 +69,8 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut grid_materials: ResMut<Assets<GridMaterial>>,
+    mut grid: ResMut<Grid>,
 ) {
     commands.spawn((Camera2d::default(), MainCamera));
 
@@ -133,4 +134,8 @@ fn setup(
         MeshMaterial2d(materials.add(Color::from(WHITE))),
         Transform::default(),
     ));
+
+    grid.generate(42, 0.05, (0., 0.));
+
+    commands.spawn(grid.bundle(&mut meshes, &mut grid_materials, 0.5, true));
 }

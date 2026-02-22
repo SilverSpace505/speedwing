@@ -1,5 +1,14 @@
-use bevy::prelude::*;
+use bevy::{
+    asset::RenderAssetUsages,
+    mesh::{Indices, MeshVertexAttribute, VertexFormat},
+    prelude::*,
+    render::render_resource::AsBindGroup,
+    shader::ShaderRef,
+    sprite_render::Material2d,
+};
 use noise::{NoiseFn, Perlin};
+
+const SHADER_ASSET_PATH: &str = "shaders/grid.wgsl";
 
 #[derive(Resource)]
 pub struct Grid {
@@ -9,6 +18,45 @@ pub struct Grid {
     height: usize,
     spacing: f32,
     data: Vec<f32>,
+    mesh: Option<Handle<Mesh>>,
+}
+
+const ATTRIBUTE_V: MeshVertexAttribute =
+    MeshVertexAttribute::new("V", 988540917, VertexFormat::Float32);
+
+pub struct MeshAttributes {
+    positions: Vec<[f32; 3]>,
+    colours: Vec<[f32; 4]>,
+    indices: Indices,
+    vs: Vec<f32>,
+}
+
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub struct GridMaterial {
+    #[uniform(0)]
+    color: LinearRgba,
+}
+
+impl Material2d for GridMaterial {
+    fn vertex_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+    fn fragment_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+
+    fn specialize(
+        descriptor: &mut bevy::render::render_resource::RenderPipelineDescriptor,
+        layout: &bevy::mesh::MeshVertexBufferLayoutRef,
+        _key: bevy::sprite_render::Material2dKey<Self>,
+    ) -> Result<(), bevy::render::render_resource::SpecializedMeshPipelineError> {
+        let vertex_layout = layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            ATTRIBUTE_V.at_shader_location(1),
+        ])?;
+        descriptor.vertex.buffers = vec![vertex_layout];
+        Ok(())
+    }
 }
 
 impl Grid {
@@ -20,6 +68,7 @@ impl Grid {
             height,
             spacing,
             data: vec![0.; width * height],
+            mesh: None,
         }
     }
 
@@ -216,5 +265,177 @@ impl Grid {
             }
         }
         segments
+    }
+
+    pub fn gen_triangles(
+        &self,
+        threshold: f32,
+        smooth: bool,
+    ) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+        let mut triangles = Vec::new();
+
+        for x in 0..self.width - 1 {
+            for y in 0..self.height - 1 {
+                let vs = [
+                    self.get(x, y),
+                    self.get(x + 1, y),
+                    self.get(x, y + 1),
+                    self.get(x + 1, y + 1),
+                ];
+                let mut vsf = [0., 0., 0., 0.];
+                let mut vi = 0u8;
+                for (i, v) in vs.iter().enumerate() {
+                    let b = v.is_some_and(|v| v > threshold);
+                    vsf[i] = v.unwrap_or(0.);
+                    vi |= (b as u8) << (i as u8);
+                }
+
+                let x = x as f32;
+                let y = y as f32;
+
+                let rs = match smooth {
+                    true => (
+                        ((threshold - vsf[0]) / (vsf[1] - vsf[0])).clamp(0., 1.),
+                        ((threshold - vsf[1]) / (vsf[3] - vsf[1])).clamp(0., 1.),
+                        ((threshold - vsf[2]) / (vsf[3] - vsf[2])).clamp(0., 1.),
+                        ((threshold - vsf[0]) / (vsf[2] - vsf[0])).clamp(0., 1.),
+                    ),
+                    false => (0.5, 0.5, 0.5, 0.5),
+                };
+
+                let c = ((x, y), (x + 1., y), (x + 1., y + 1.), (x, y + 1.));
+
+                let e = (
+                    (x + rs.0, y),
+                    (x + 1., y + rs.1),
+                    (x + rs.2, y + 1.),
+                    (x, y + rs.3),
+                );
+
+                if let Some(mut triangle) = match vi {
+                    // corners
+                    0b0001 => Some(vec![(e.0, e.3, c.0)]),
+                    0b0010 => Some(vec![(e.0, c.1, e.1)]),
+                    0b0100 => Some(vec![(e.3, e.2, c.3)]),
+                    0b1000 => Some(vec![(e.1, c.2, e.2)]),
+
+                    // big corners
+                    0b0111 => Some(vec![(c.0, c.1, e.1), (c.0, e.1, e.2), (c.0, e.2, c.3)]),
+                    0b1011 => Some(vec![(c.1, c.2, e.2), (c.1, e.2, e.3), (c.1, e.3, c.0)]),
+                    0b1101 => Some(vec![(c.3, c.0, e.0), (c.3, e.0, e.1), (c.3, e.1, c.2)]),
+                    0b1110 => Some(vec![(c.2, c.3, e.3), (c.2, e.3, e.0), (c.2, e.0, c.1)]),
+
+                    // edges
+                    0b0011 => Some(vec![(c.0, c.1, e.1), (c.0, e.1, e.3)]),
+                    0b1100 => Some(vec![(e.1, c.2, c.3), (e.1, c.3, e.3)]),
+                    0b0101 => Some(vec![(c.0, e.0, e.2), (c.0, e.2, c.3)]),
+                    0b1010 => Some(vec![(c.1, c.2, e.2), (c.1, e.2, e.0)]),
+
+                    // diagonals
+                    0b1001 => Some(vec![(c.0, e.0, e.3), (e.1, c.2, e.2)]),
+                    0b0110 => Some(vec![(c.1, e.1, e.0), (c.3, e.3, e.2)]),
+
+                    0b1111 => Some(vec![(c.0, c.1, c.2), (c.0, c.2, c.3)]),
+
+                    _ => None,
+                } {
+                    triangles.append(&mut triangle);
+                }
+            }
+        }
+
+        triangles
+    }
+
+    pub fn gen_attributes(&self, threshold: f32, smooth: bool) -> MeshAttributes {
+        let mut positions = Vec::new();
+        let mut colours = Vec::new();
+        let mut indices = Vec::new();
+        let mut vs = Vec::new();
+
+        let triangles = self.gen_triangles(threshold, smooth);
+
+        for (i, triangle) in triangles.iter().enumerate() {
+            positions.push([triangle.0.0, triangle.0.1, 0.]);
+            positions.push([triangle.1.0, triangle.1.1, 0.]);
+            positions.push([triangle.2.0, triangle.2.1, 0.]);
+
+            let c = [0.5, 0.5, 0.5, 1.];
+            colours.push(c);
+            colours.push(c);
+            colours.push(c);
+
+            let i = i as u32;
+            indices.push(i * 3);
+            indices.push(i * 3 + 1);
+            indices.push(i * 3 + 2);
+
+            vs.push(match self.gets(triangle.0.0, triangle.0.1) {
+                Some(v) => (v - threshold) / (1. - threshold),
+                None => 0.,
+            });
+            vs.push(match self.gets(triangle.1.0, triangle.1.1) {
+                Some(v) => (v - threshold) / (1. - threshold),
+                None => 0.,
+            });
+            vs.push(match self.gets(triangle.2.0, triangle.2.1) {
+                Some(v) => (v - threshold) / (1. - threshold),
+                None => 0.,
+            });
+        }
+
+        let indices = Indices::U32(indices);
+
+        MeshAttributes {
+            positions,
+            colours,
+            indices,
+            vs,
+        }
+    }
+    pub fn bundle(
+        &mut self,
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<GridMaterial>,
+        threshold: f32,
+        smooth: bool,
+    ) -> impl Bundle {
+        let attributes = self.gen_attributes(threshold, smooth);
+        let mut mesh = Mesh::new(
+            bevy::mesh::PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        );
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
+        mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
+        mesh.insert_indices(attributes.indices);
+
+        let mesh = meshes.add(mesh);
+
+        self.mesh = Some(mesh.clone());
+
+        (
+            Mesh2d(mesh),
+            MeshMaterial2d(materials.add(GridMaterial {
+                color: LinearRgba::WHITE,
+            })),
+            Transform::from_translation(Vec3::new(self.x, self.y, 0.))
+                .with_scale(Vec3::splat(self.spacing)),
+        )
+    }
+    pub fn set_mesh(&self, meshes: &mut Assets<Mesh>, attributes: MeshAttributes) {
+        let Some(mesh) = &self.mesh else {
+            return;
+        };
+
+        let Some(mesh) = meshes.get_mut(mesh) else {
+            return;
+        };
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
+        mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
+        mesh.insert_indices(attributes.indices);
     }
 }

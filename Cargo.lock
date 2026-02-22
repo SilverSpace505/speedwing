@@ -4164,6 +4164,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "speedwing"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_fix_cursor_unlock_web",
+ "noise",
+]
+
+[[package]]
 name = "spin"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5477,15 +5486,6 @@ name = "yazi"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e01738255b5a16e78bbb83e7fbba0a1e7dd506905cfc53f4622d89015a03fbb5"
-
-[[package]]
-name = "yip"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_fix_cursor_unlock_web",
- "noise",
-]
 
 [[package]]
 name = "zeno"

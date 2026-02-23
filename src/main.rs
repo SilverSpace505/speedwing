@@ -3,6 +3,7 @@ mod grid;
 mod input;
 mod player;
 mod render;
+mod grid_map;
 
 use bevy::{
     asset::{AssetMetaCheck, RenderAssetUsages}, color::palettes::css::WHITE, mesh::Indices, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution
@@ -10,11 +11,7 @@ use bevy::{
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
 
 use crate::{
-    common::{MainCamera, MovementGizmoGroup, State},
-    grid::{Grid, GridMaterial},
-    input::{handle_cursor_lock, handle_mouse_movement, touch_system},
-    player::Player,
-    render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config},
+    common::{MainCamera, MovementGizmoGroup, State}, grid::{GridMaterial}, grid_map::{GridMap, manage_meshes}, input::{handle_cursor_lock, handle_mouse_movement, touch_system}, player::Player, render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config}
 };
 
 fn main() {
@@ -37,7 +34,7 @@ fn main() {
         )
         .add_plugins((FixPointerUnlockPlugin, Material2dPlugin::<GridMaterial>::default()))
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
-        .insert_resource(Grid::new(100., 100., 100, 100, 10.))
+        .insert_resource(GridMap::new(10., 16, 0.5, true))
         .insert_resource(State {
             debug: false,
             moving: false,
@@ -56,6 +53,7 @@ fn main() {
                 handle_cursor_lock,
                 handle_mouse_movement,
                 // render
+                manage_meshes,
                 draw_dots,
                 update_gizmo_config,
                 render_movement,
@@ -69,8 +67,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut grid_materials: ResMut<Assets<GridMaterial>>,
-    mut grid: ResMut<Grid>,
+    mut grid_map: ResMut<GridMap>,
 ) {
     commands.spawn((Camera2d::default(), MainCamera));
 
@@ -135,7 +132,9 @@ fn setup(
         Transform::default(),
     ));
 
-    grid.generate(42, 0.05, (0., 0.));
-
-    commands.spawn(grid.bundle(&mut meshes, &mut grid_materials, 0.5, true));
+    for x in -4..4 {
+        for y in -4..4 {
+            grid_map.generate(x, y, 42, 0.05, (x as f64, y as f64));
+        }
+    }
 }

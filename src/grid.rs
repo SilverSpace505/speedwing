@@ -14,11 +14,11 @@ const SHADER_ASSET_PATH: &str = "shaders/grid.wgsl";
 pub struct Grid {
     x: f32,
     y: f32,
-    width: usize,
-    height: usize,
+    pub width: u32,
+    pub height: u32,
     spacing: f32,
     data: Vec<f32>,
-    mesh: Option<Handle<Mesh>>,
+    pub mesh: Option<Handle<Mesh>>,
 }
 
 const ATTRIBUTE_V: MeshVertexAttribute =
@@ -60,102 +60,102 @@ impl Material2d for GridMaterial {
 }
 
 impl Grid {
-    pub fn new(x: f32, y: f32, width: usize, height: usize, spacing: f32) -> Self {
+    pub fn new(x: f32, y: f32, width: u32, height: u32, spacing: f32) -> Self {
         Self {
             x,
             y,
             width,
             height,
             spacing,
-            data: vec![0.; width * height],
+            data: vec![0.; (width * height) as usize],
             mesh: None,
         }
     }
 
-    fn get(&self, x: usize, y: usize) -> Option<f32> {
+    pub fn get(&self, x: u32, y: u32) -> Option<f32> {
         if x < self.width && y < self.height {
-            Some(self.data[y * self.width + x])
+            Some(self.data[(y * self.width + x) as usize])
         } else {
             None
         }
     }
 
-    fn gets(&self, x: f32, y: f32) -> Option<f32> {
-        let x0 = x.floor() as usize;
-        let y0 = y.floor() as usize;
-        let x1 = x0 + 1;
-        let y1 = y0 + 1;
+    // fn gets(&self, x: f32, y: f32) -> Option<f32> {
+    //     let x0 = x.floor() as u32;
+    //     let y0 = y.floor() as u32;
+    //     let x1 = x0 + 1;
+    //     let y1 = y0 + 1;
 
-        let tx = x.fract();
-        let ty = y.fract();
+    //     let tx = x.fract();
+    //     let ty = y.fract();
 
-        let v00 = self.get(x0, y0)?;
-        let v10 = self.get(x1, y0)?;
-        let v01 = self.get(x0, y1)?;
-        let v11 = self.get(x1, y1)?;
+    //     let v00 = self.get(x0, y0)?;
+    //     let v10 = self.get(x1, y0)?;
+    //     let v01 = self.get(x0, y1)?;
+    //     let v11 = self.get(x1, y1)?;
 
-        let v = (v00 * (1. - tx) + v10 * tx) * (1. - ty) + (v01 * (1. - tx) + v11 * tx) * ty;
+    //     let v = (v00 * (1. - tx) + v10 * tx) * (1. - ty) + (v01 * (1. - tx) + v11 * tx) * ty;
 
-        return Some(v);
-    }
+    //     return Some(v);
+    // }
 
-    pub fn get_world(&self, x: f32, y: f32) -> Option<f32> {
-        let gx = (x - self.x) / self.spacing;
-        let gy = (y - self.y) / self.spacing;
-        if gx < 1. || gy < 1. {
-            return None;
-        }
-        self.gets(gx, gy)
-    }
+    // pub fn get_world(&self, x: f32, y: f32) -> Option<f32> {
+    //     let gx = (x - self.x) / self.spacing;
+    //     let gy = (y - self.y) / self.spacing;
+    //     if gx < 1. || gy < 1. {
+    //         return None;
+    //     }
+    //     self.gets(gx, gy)
+    // }
 
-    fn set(&mut self, x: usize, y: usize, v: f32) {
+    pub fn set(&mut self, x: u32, y: u32, v: f32) {
         if x < self.width && y < self.height {
-            self.data[y * self.width + x] = v.clamp(0., 1.)
+            self.data[(y * self.width + x) as usize] = v.clamp(0., 1.)
         }
     }
 
-    fn get_normal(&self, x: f32, y: f32) -> Option<(f32, f32)> {
-        let x0 = x.floor() as usize;
-        let y0 = y.floor() as usize;
-        let x1 = x0 + 1;
-        let y1 = y0 + 1;
+    // fn get_normal(&self, x: f32, y: f32) -> Option<(f32, f32)> {
+    //     let x0 = x.floor() as u32;
+    //     let y0 = y.floor() as u32;
+    //     let x1 = x0 + 1;
+    //     let y1 = y0 + 1;
 
-        let tx = x.fract();
-        let ty = y.fract();
+    //     let tx = x.fract();
+    //     let ty = y.fract();
 
-        let grad = |gx: usize, gy: usize| -> Option<(f32, f32)> {
-            let dx = self.get(gx + 1, gy)? - self.get(gx - 1, gy)?;
-            let dy = self.get(gx, gy + 1)? - self.get(gx, gy - 1)?;
-            Some((dx, dy))
-        };
+    //     let grad = |gx: u32, gy: u32| -> Option<(f32, f32)> {
+    //         let dx = self.get(gx + 1, gy)? - self.get(gx - 1, gy)?;
+    //         let dy = self.get(gx, gy + 1)? - self.get(gx, gy - 1)?;
+    //         Some((dx, dy))
+    //     };
 
-        let (g00x, g00y) = grad(x0, y0)?;
-        let (g10x, g10y) = grad(x1, y0)?;
-        let (g01x, g01y) = grad(x0, y1)?;
-        let (g11x, g11y) = grad(x1, y1)?;
+    //     let (g00x, g00y) = grad(x0, y0)?;
+    //     let (g10x, g10y) = grad(x1, y0)?;
+    //     let (g01x, g01y) = grad(x0, y1)?;
+    //     let (g11x, g11y) = grad(x1, y1)?;
 
-        let mut nx =
-            (g00x * (1. - tx) + g10x * tx) * (1. - ty) + (g01x * (1. - tx) + g11x * tx) * ty;
-        let mut ny =
-            (g00y * (1. - tx) + g10y * tx) * (1. - ty) + (g01y * (1. - tx) + g11y * tx) * ty;
+    //     let mut nx =
+    //         (g00x * (1. - tx) + g10x * tx) * (1. - ty) + (g01x * (1. - tx) + g11x * tx) * ty;
+    //     let mut ny =
+    //         (g00y * (1. - tx) + g10y * tx) * (1. - ty) + (g01y * (1. - tx) + g11y * tx) * ty;
 
-        let nl = (nx.powi(2) + ny.powi(2)).sqrt();
-        if nl > 0. {
-            nx /= nl;
-            ny /= nl;
-        }
+    //     let nl = (nx.powi(2) + ny.powi(2)).sqrt();
+    //     if nl > 0. {
+    //         nx /= nl;
+    //         ny /= nl;
+    //     }
 
-        return Some((nx, ny));
-    }
+    //     return Some((nx, ny));
+    // }
 
-    pub fn get_normal_world(&self, x: f32, y: f32) -> Option<(f32, f32)> {
-        let gx = (x - self.x) / self.spacing;
-        let gy = (y - self.y) / self.spacing;
-        if gx < 1. || gy < 1. {
-            return None;
-        }
-        self.get_normal(gx, gy)
-    }
+    // pub fn get_normal_world(&self, x: f32, y: f32) -> Option<(f32, f32)> {
+    //     let gx = (x - self.x) / self.spacing;
+    //     let gy = (y - self.y) / self.spacing;
+    //     if gx < 1. || gy < 1. {
+    //         return None;
+    //     }
+    //     self.get_normal(gx, gy)
+    // }
 
     pub fn draw_dots(&self, gizmos: &mut Gizmos) {
         for x in 0..self.width {
@@ -266,21 +266,63 @@ impl Grid {
         }
         segments
     }
+    pub fn get_bridge(&self, x: u32, y: u32, bridges: &Option<[Option<&Grid>; 3]>) -> Option<f32> {
+        match self.get(x, y) {
+            Some(v) => Some(v),
+            None => {
+                let Some(bridges) = bridges else { return None };
+                if x >= self.width
+                    && y >= self.height
+                    && let Some(grid) = &bridges[0]
+                {
+                    grid.get(x - self.width, y - self.height)
+                } else if x >= self.width
+                    && let Some(grid) = &bridges[1]
+                {
+                    grid.get(x - self.width, y)
+                } else if y >= self.height
+                    && let Some(grid) = &bridges[2]
+                {
+                    grid.get(x, y - self.height)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+    fn gets_bridge(&self, x: f32, y: f32, bridges: &Option<[Option<&Grid>; 3]>) -> Option<f32> {
+        let x0 = x.floor() as u32;
+        let y0 = y.floor() as u32;
+        let x1 = x0 + 1;
+        let y1 = y0 + 1;
 
+        let tx = x.fract();
+        let ty = y.fract();
+
+        let v00 = self.get_bridge(x0, y0, bridges)?;
+        let v10 = self.get_bridge(x1, y0, bridges)?;
+        let v01 = self.get_bridge(x0, y1, bridges)?;
+        let v11 = self.get_bridge(x1, y1, bridges)?;
+
+        let v = (v00 * (1. - tx) + v10 * tx) * (1. - ty) + (v01 * (1. - tx) + v11 * tx) * ty;
+
+        return Some(v);
+    }
     pub fn gen_triangles(
         &self,
         threshold: f32,
         smooth: bool,
+        bridges: &Option<[Option<&Grid>; 3]>,
     ) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
         let mut triangles = Vec::new();
 
-        for x in 0..self.width - 1 {
-            for y in 0..self.height - 1 {
+        for x in 0..self.width {
+            for y in 0..self.height {
                 let vs = [
-                    self.get(x, y),
-                    self.get(x + 1, y),
-                    self.get(x, y + 1),
-                    self.get(x + 1, y + 1),
+                    self.get_bridge(x, y, &bridges),
+                    self.get_bridge(x + 1, y, &bridges),
+                    self.get_bridge(x, y + 1, &bridges),
+                    self.get_bridge(x + 1, y + 1, &bridges),
                 ];
                 let mut vsf = [0., 0., 0., 0.];
                 let mut vi = 0u8;
@@ -347,13 +389,18 @@ impl Grid {
         triangles
     }
 
-    pub fn gen_attributes(&self, threshold: f32, smooth: bool) -> MeshAttributes {
+    pub fn gen_attributes(
+        &self,
+        threshold: f32,
+        smooth: bool,
+        bridges: &Option<[Option<&Grid>; 3]>,
+    ) -> MeshAttributes {
         let mut positions = Vec::new();
         let mut colours = Vec::new();
         let mut indices = Vec::new();
         let mut vs = Vec::new();
 
-        let triangles = self.gen_triangles(threshold, smooth);
+        let triangles = self.gen_triangles(threshold, smooth, bridges);
 
         for (i, triangle) in triangles.iter().enumerate() {
             positions.push([triangle.0.0, triangle.0.1, 0.]);
@@ -370,15 +417,15 @@ impl Grid {
             indices.push(i * 3 + 1);
             indices.push(i * 3 + 2);
 
-            vs.push(match self.gets(triangle.0.0, triangle.0.1) {
+            vs.push(match self.gets_bridge(triangle.0.0, triangle.0.1, bridges) {
                 Some(v) => (v - threshold) / (1. - threshold),
                 None => 0.,
             });
-            vs.push(match self.gets(triangle.1.0, triangle.1.1) {
+            vs.push(match self.gets_bridge(triangle.1.0, triangle.1.1, bridges) {
                 Some(v) => (v - threshold) / (1. - threshold),
                 None => 0.,
             });
-            vs.push(match self.gets(triangle.2.0, triangle.2.1) {
+            vs.push(match self.gets_bridge(triangle.2.0, triangle.2.1, bridges) {
                 Some(v) => (v - threshold) / (1. - threshold),
                 None => 0.,
             });
@@ -393,14 +440,44 @@ impl Grid {
             vs,
         }
     }
-    pub fn bundle(
+    // pub fn bundle(
+    //     &mut self,
+    //     meshes: &mut Assets<Mesh>,
+    //     materials: &mut Assets<GridMaterial>,
+    //     threshold: f32,
+    //     smooth: bool,
+    //     bridges: &Option<[Option<&Grid>; 3]>,
+    // ) -> impl Bundle {
+    //     let attributes = self.gen_attributes(threshold, smooth, bridges);
+    //     let mut mesh = Mesh::new(
+    //         bevy::mesh::PrimitiveTopology::TriangleList,
+    //         RenderAssetUsages::default(),
+    //     );
+
+    //     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
+    //     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
+    //     mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
+    //     mesh.insert_indices(attributes.indices);
+
+    //     let mesh = meshes.add(mesh);
+
+    //     self.mesh = Some(mesh.clone());
+
+    //     (
+    //         Mesh2d(mesh),
+    //         MeshMaterial2d(materials.add(GridMaterial {
+    //             color: LinearRgba::WHITE,
+    //         })),
+    //         Transform::from_translation(Vec3::new(self.x, self.y, 0.))
+    //             .with_scale(Vec3::splat(self.spacing)),
+    //     )
+    // }
+    pub fn bundle_attributes(
         &mut self,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<GridMaterial>,
-        threshold: f32,
-        smooth: bool,
+        attributes: MeshAttributes
     ) -> impl Bundle {
-        let attributes = self.gen_attributes(threshold, smooth);
         let mut mesh = Mesh::new(
             bevy::mesh::PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
@@ -424,18 +501,18 @@ impl Grid {
                 .with_scale(Vec3::splat(self.spacing)),
         )
     }
-    pub fn set_mesh(&self, meshes: &mut Assets<Mesh>, attributes: MeshAttributes) {
-        let Some(mesh) = &self.mesh else {
-            return;
-        };
+    // pub fn set_mesh(&self, meshes: &mut Assets<Mesh>, attributes: MeshAttributes) {
+    //     let Some(mesh) = &self.mesh else {
+    //         return;
+    //     };
 
-        let Some(mesh) = meshes.get_mut(mesh) else {
-            return;
-        };
+    //     let Some(mesh) = meshes.get_mut(mesh) else {
+    //         return;
+    //     };
 
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
-        mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
-        mesh.insert_indices(attributes.indices);
-    }
+    //     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
+    //     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
+    //     mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
+    //     mesh.insert_indices(attributes.indices);
+    // }
 }

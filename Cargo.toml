@@ -15,7 +15,14 @@ features = ["2d", "webgpu"]
 [profile.dev]
 opt-level = 1
 
+[profile.fast]
+inherits = "dev"
+strip = true
+
 [profile.dev.package."*"]
+opt-level = 3
+
+[profile.fast.package."*"]
 opt-level = 3
 
 [profile.release]

@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    common::{MovementGizmoGroup, State, Velocity, get_threshold},
-    grid::Grid,
-    player::{CursorMove, Player},
+    common::{MovementGizmoGroup, State, Velocity}, grid_map::GridMap, player::{CursorMove, Player}
 };
 
 pub fn configure_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
@@ -93,9 +91,10 @@ pub fn draw_arrow(
     );
 }
 
-pub fn draw_dots(mut gizmos: Gizmos, grid: Res<Grid>, time: Res<Time>, state: Res<State>) {
+pub fn draw_dots(mut gizmos: Gizmos, grid_map: Res<GridMap>, state: Res<State>) {
     if state.debug {
-        grid.draw_dots(&mut gizmos);
-        grid.draw_segments(get_threshold(time.elapsed_secs(), &state), true, &mut gizmos);
+        grid_map.draw_dots(&mut gizmos);
+        grid_map.draw_segments(&mut gizmos);
+        grid_map.draw_borders(&mut gizmos);
     }
 }

@@ -24,6 +24,9 @@ impl GridMap {
             smooth,
         }
     }
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
     fn create_grid(&self, x: i32, y: i32) -> Grid {
         Grid::new(
             x as f32 * self.scale * self.grid_size as f32,
@@ -33,28 +36,27 @@ impl GridMap {
             self.scale,
         )
     }
-    // pub fn set(&mut self, x: i32, y: i32, v: f32) {
-    //     let gx = x / self.grid_size as i32;
-    //     let gy = y / self.grid_size as i32;
+    pub fn set(&mut self, x: i32, y: i32, v: f32) {
+        let gx = div_floor(x, self.grid_size as i32);
+        let gy = div_floor(y, self.grid_size as i32);
 
-    //     let x = (x - gx * self.grid_size as i32) as u32;
-    //     let y = (y - gy * self.grid_size as i32) as u32;
+        let x = (x - gx * self.grid_size as i32) as u32;
+        let y = (y - gy * self.grid_size as i32) as u32;
 
-    //     let grid = match self.grids.get_mut(&(gx, gy)) {
-    //         Some(grid) => Some(grid),
-    //         None => {
-    //             let grid = self.create_grid(gx, gy);
-    //             self.grids.insert((gx, gy), grid);
-    //             self.grids.get_mut(&(gx, gy))
-    //         }
-    //     };
-    //     let Some(grid) = grid else {
-    //         return;
-    //     };
+        let grid = match self.grids.get_mut(&(gx, gy)) {
+            Some(grid) => Some(grid),
+            None => {
+                let grid = self.create_grid(gx, gy);
+                self.grids.insert((gx, gy), grid);
+                self.grids.get_mut(&(gx, gy))
+            }
+        };
+        let Some(grid) = grid else {
+            return;
+        };
 
-    //     grid.set(x, y, v);
-    // }
-    //
+        grid.set(x, y, v);
+    }
     pub fn get(&self, x: i32, y: i32) -> Option<f32> {
         let gx = div_floor(x, self.grid_size as i32);
         let gy = div_floor(y, self.grid_size as i32);
@@ -132,7 +134,7 @@ impl GridMap {
     //
     pub fn manage_meshes(
         &mut self,
-        commands: &mut Commands,
+        mut commands: &mut Commands,
         mut meshes: &mut ResMut<Assets<Mesh>>,
         mut materials: &mut ResMut<Assets<GridMaterial>>,
     ) {
@@ -146,41 +148,79 @@ impl GridMap {
                 ]);
 
                 to_mesh.push((
+                    true,
+                    coords.clone(),
+                    grid.gen_attributes(self.threshold, self.smooth, &bridges),
+                ));
+            } else if grid.changed {
+                let bridges = Some([
+                    self.grids.get(&(coords.0 + 1, coords.1 + 1)),
+                    self.grids.get(&(coords.0 + 1, coords.1)),
+                    self.grids.get(&(coords.0, coords.1 + 1)),
+                ]);
+
+                to_mesh.push((
+                    false,
                     coords.clone(),
                     grid.gen_attributes(self.threshold, self.smooth, &bridges),
                 ));
             }
         }
-        for (coords, attributes) in to_mesh.into_iter() {
+        for (new, coords, attributes) in to_mesh.into_iter() {
             if let Some(grid) = self.grids.get_mut(&coords) {
-                commands.spawn(grid.bundle_attributes(&mut meshes, &mut materials, attributes));
+                if new {
+                    grid.spawn_attributes(&mut commands, &mut meshes, &mut materials, attributes);
+                } else {
+                    grid.changed = false;
+                    grid.set_mesh(&mut meshes, attributes);
+                }
             }
         }
     }
 
-    pub fn draw_dots(&self, gizmos: &mut Gizmos) {
+    pub fn draw_dots(
+        &self,
+        gizmos: &mut Gizmos,
+        camera: &Camera,
+        camera_transform: &GlobalTransform,
+    ) {
         for (_coords, grid) in self.grids.iter() {
-            grid.draw_dots(gizmos);
+            if grid.in_viewport(camera, camera_transform) {
+                grid.draw_dots(gizmos);
+            }
         }
     }
 
-    pub fn draw_segments(&self, gizmos: &mut Gizmos) {
+    pub fn draw_segments(
+        &self,
+        gizmos: &mut Gizmos,
+        camera: &Camera,
+        camera_transform: &GlobalTransform,
+    ) {
         for (_coords, grid) in self.grids.iter() {
-            grid.draw_segments(self.threshold, self.smooth, gizmos);
+            if grid.in_viewport(camera, camera_transform) {
+                grid.draw_segments(self.threshold, self.smooth, gizmos);
+            }
         }
     }
-    pub fn draw_borders(&self, gizmos: &mut Gizmos) {
+    pub fn draw_borders(
+        &self,
+        gizmos: &mut Gizmos,
+        camera: &Camera,
+        camera_transform: &GlobalTransform,
+    ) {
         for (coords, grid) in self.grids.iter() {
-            gizmos.rect_2d(
-                Isometry2d::from_translation(
-                    (Vec2::new(coords.0 as f32, coords.1 as f32) + 0.5)
-                        * self.grid_size as f32
-                        * self.scale,
-                ),
-                Vec2::splat(self.grid_size as f32 * self.scale),
-                Color::linear_rgb(0., 1., 0.),
-            );
-            grid.draw_segments(self.threshold, self.smooth, gizmos);
+            if grid.in_viewport(camera, camera_transform) {
+                gizmos.rect_2d(
+                    Isometry2d::from_translation(
+                        (Vec2::new(coords.0 as f32, coords.1 as f32) + 0.5)
+                            * self.grid_size as f32
+                            * self.scale,
+                    ),
+                    Vec2::splat(self.grid_size as f32 * self.scale),
+                    Color::linear_rgb(0., 1., 0.),
+                );
+            }
         }
     }
     pub fn generate(&mut self, gx: i32, gy: i32, seed: u32, scale: f64, offset: (f64, f64)) {
@@ -211,7 +251,7 @@ pub fn manage_meshes(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GridMaterial>>,
-    mut map: ResMut<GridMap>,
+    mut grid_map: ResMut<GridMap>,
 ) {
-    map.manage_meshes(&mut commands, &mut meshes, &mut materials);
+    grid_map.manage_meshes(&mut commands, &mut meshes, &mut materials);
 }

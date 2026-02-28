@@ -4,6 +4,7 @@ mod input;
 mod player;
 mod render;
 mod grid_map;
+mod editor;
 
 use bevy::{
     asset::{AssetMetaCheck, RenderAssetUsages}, color::palettes::css::WHITE, mesh::Indices, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution
@@ -11,7 +12,7 @@ use bevy::{
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
 
 use crate::{
-    common::{MainCamera, MovementGizmoGroup, State}, grid::{GridMaterial}, grid_map::{GridMap, manage_meshes}, input::{handle_cursor_lock, handle_mouse_movement, touch_system}, player::Player, render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config}
+    common::{MainCamera, MovementGizmoGroup, State}, editor::Editor, grid::GridMaterial, grid_map::{GridMap, manage_meshes}, input::{handle_cursor_lock, handle_mouse_movement, touch_system}, player::Player, render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config}
 };
 
 fn main() {
@@ -38,7 +39,9 @@ fn main() {
         .insert_resource(State {
             debug: false,
             moving: false,
+            editor: false
         })
+        .insert_resource(Editor::new())
         .init_gizmo_group::<MovementGizmoGroup>()
         .add_systems(Startup, (setup, configure_gizmos))
         .add_systems(
@@ -52,6 +55,8 @@ fn main() {
                 touch_system,
                 handle_cursor_lock,
                 handle_mouse_movement,
+                Editor::update,
+                Editor::handle_mouse,
                 // render
                 manage_meshes,
                 draw_dots,

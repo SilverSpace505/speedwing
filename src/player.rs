@@ -100,6 +100,8 @@ impl Player {
         let max_speed = 1000.0;
         let mut friction: f32 = 0.99;
 
+        // let editor = state.editor;
+
         let mut direction = Vec3::ZERO;
         if cursor_move.0.length() >= 0.1 {
             direction += cursor_move.0.extend(0.);
@@ -107,19 +109,19 @@ impl Player {
             friction = 0.95;
         }
 
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            direction.y += 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyS) {
-            direction.y -= 1.0;
-        }
+        // if keyboard_input.pressed(KeyCode::KeyW) && !editor {
+        //     direction.y += 1.0;
+        // }
+        // if keyboard_input.pressed(KeyCode::KeyS) && !editor {
+        //     direction.y -= 1.0;
+        // }
 
-        if keyboard_input.pressed(KeyCode::KeyD) {
-            direction.x += 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0;
-        }
+        // if keyboard_input.pressed(KeyCode::KeyD) && !editor {
+        //     direction.x += 1.0;
+        // }
+        // if keyboard_input.pressed(KeyCode::KeyA) && !editor {
+        //     direction.x -= 1.0;
+        // }
 
         if keyboard_input.just_pressed(KeyCode::Semicolon) {
             state.debug = !state.debug;
@@ -224,7 +226,11 @@ impl Player {
         player_query: Query<(&Transform, &Velocity), (With<Player>, Without<MainCamera>)>,
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
+        state: Res<State>,
     ) {
+        if state.editor {
+            return;
+        }
         let Ok((player_transform, velocity)) = player_query.single() else {
             return;
         };

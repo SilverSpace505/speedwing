@@ -8,6 +8,8 @@ use bevy::{
 };
 use noise::{NoiseFn, Perlin};
 
+use crate::common::in_viewport;
+
 const SHADER_ASSET_PATH: &str = "shaders/grid.wgsl";
 
 #[derive(Resource)]
@@ -19,6 +21,8 @@ pub struct Grid {
     spacing: f32,
     data: Vec<f32>,
     pub mesh: Option<Handle<Mesh>>,
+    entity: Option<Entity>,
+    pub changed: bool,
 }
 
 const ATTRIBUTE_V: MeshVertexAttribute =
@@ -69,6 +73,8 @@ impl Grid {
             spacing,
             data: vec![0.; (width * height) as usize],
             mesh: None,
+            entity: None,
+            changed: false,
         }
     }
 
@@ -110,7 +116,8 @@ impl Grid {
 
     pub fn set(&mut self, x: u32, y: u32, v: f32) {
         if x < self.width && y < self.height {
-            self.data[(y * self.width + x) as usize] = v.clamp(0., 1.)
+            self.data[(y * self.width + x) as usize] = v.clamp(0., 1.);
+            self.changed = true;
         }
     }
 
@@ -417,18 +424,24 @@ impl Grid {
             indices.push(i * 3 + 1);
             indices.push(i * 3 + 2);
 
-            vs.push(match self.gets_bridge(triangle.0.0, triangle.0.1, bridges) {
-                Some(v) => (v - threshold) / (1. - threshold),
-                None => 0.,
-            });
-            vs.push(match self.gets_bridge(triangle.1.0, triangle.1.1, bridges) {
-                Some(v) => (v - threshold) / (1. - threshold),
-                None => 0.,
-            });
-            vs.push(match self.gets_bridge(triangle.2.0, triangle.2.1, bridges) {
-                Some(v) => (v - threshold) / (1. - threshold),
-                None => 0.,
-            });
+            vs.push(
+                match self.gets_bridge(triangle.0.0, triangle.0.1, bridges) {
+                    Some(v) => (v - threshold) / (1. - threshold),
+                    None => 0.,
+                },
+            );
+            vs.push(
+                match self.gets_bridge(triangle.1.0, triangle.1.1, bridges) {
+                    Some(v) => (v - threshold) / (1. - threshold),
+                    None => 0.,
+                },
+            );
+            vs.push(
+                match self.gets_bridge(triangle.2.0, triangle.2.1, bridges) {
+                    Some(v) => (v - threshold) / (1. - threshold),
+                    None => 0.,
+                },
+            );
         }
 
         let indices = Indices::U32(indices);
@@ -472,12 +485,13 @@ impl Grid {
     //             .with_scale(Vec3::splat(self.spacing)),
     //     )
     // }
-    pub fn bundle_attributes(
+    pub fn spawn_attributes(
         &mut self,
+        commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<GridMaterial>,
-        attributes: MeshAttributes
-    ) -> impl Bundle {
+        attributes: MeshAttributes,
+    ) {
         let mut mesh = Mesh::new(
             bevy::mesh::PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
@@ -492,27 +506,57 @@ impl Grid {
 
         self.mesh = Some(mesh.clone());
 
-        (
-            Mesh2d(mesh),
-            MeshMaterial2d(materials.add(GridMaterial {
-                color: LinearRgba::WHITE,
-            })),
-            Transform::from_translation(Vec3::new(self.x, self.y, 0.))
-                .with_scale(Vec3::splat(self.spacing)),
-        )
+        self.entity = Some(
+            commands
+                .spawn((
+                    Mesh2d(mesh),
+                    MeshMaterial2d(materials.add(GridMaterial {
+                        color: LinearRgba::WHITE,
+                    })),
+                    Transform::from_translation(Vec3::new(self.x, self.y, 0.))
+                        .with_scale(Vec3::splat(self.spacing)),
+                ))
+                .id(),
+        );
     }
-    // pub fn set_mesh(&self, meshes: &mut Assets<Mesh>, attributes: MeshAttributes) {
-    //     let Some(mesh) = &self.mesh else {
-    //         return;
-    //     };
-
-    //     let Some(mesh) = meshes.get_mut(mesh) else {
-    //         return;
-    //     };
-
-    //     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
-    //     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
-    //     mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
-    //     mesh.insert_indices(attributes.indices);
+    // pub fn despawn(&self, commands: &mut Commands) {
+    //     if let Some(entity) = self.entity {
+    //         commands.entity(entity).despawn();
+    //     }
     // }
+    pub fn set_mesh(&self, meshes: &mut Assets<Mesh>, attributes: MeshAttributes) {
+        let Some(mesh) = &self.mesh else {
+            return;
+        };
+
+        let Some(mesh) = meshes.get_mut(mesh) else {
+            return;
+        };
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, attributes.positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, attributes.colours);
+        mesh.insert_attribute(ATTRIBUTE_V, attributes.vs);
+        mesh.insert_indices(attributes.indices);
+    }
+    pub fn in_viewport(&self, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
+        in_viewport(Vec2::new(self.x, self.y), camera, camera_transform)
+            || in_viewport(
+                Vec2::new(
+                    self.x + self.width as f32 * self.spacing,
+                    self.y + self.height as f32 * self.spacing,
+                ),
+                camera,
+                camera_transform,
+            )
+            || in_viewport(
+                Vec2::new(self.x + self.width as f32 * self.spacing, self.y),
+                camera,
+                camera_transform,
+            )
+            || in_viewport(
+                Vec2::new(self.x, self.y + self.height as f32 * self.spacing),
+                camera,
+                camera_transform,
+            )
+    }
 }

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{math::bool, prelude::*};
 
 #[derive(Component)]
 pub struct Velocity(pub Vec3);
@@ -7,6 +7,7 @@ pub struct Velocity(pub Vec3);
 pub struct State {
     pub debug: bool,
     pub moving: bool,
+    pub editor: bool
 }
 
 #[derive(Component)]
@@ -30,4 +31,16 @@ pub fn div_floor(a: i32, b: i32) -> i32 {
     } else {
         d
     }
+}
+
+pub fn in_viewport(point: Vec2, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
+    if let Ok(viewport_pos) = camera.world_to_viewport(camera_transform, point.extend(0.)) {
+        if let Some(viewport_size) = camera.logical_viewport_size() {
+            return viewport_pos.x >= 0.
+                && viewport_pos.y >= 0.
+                && viewport_pos.x <= viewport_size.x
+                && viewport_pos.y <= viewport_size.y;
+        }
+    }
+    false
 }

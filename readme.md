@@ -10,3 +10,9 @@ The game is deployed on https://speedwing.silverspace.io
 - Left click to lock mouse
 - ESC to unlock mouse
 - ; to toggle debug mode
+- ' to toggle editor mode
+
+#### Editor
+- WASD to move camera
+- Left button to create
+- Right button to destroy

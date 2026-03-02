@@ -7,19 +7,21 @@ use crate::{
 
 #[derive(Resource)]
 pub struct Editor {
-    camera_vel: Vec2
+    camera_vel: Vec2,
 }
 
 impl Editor {
     pub fn new() -> Self {
-        Self {camera_vel: Vec2::ZERO}
+        Self {
+            camera_vel: Vec2::ZERO,
+        }
     }
     pub fn update(
         mut state: ResMut<State>,
         keyboard_input: Res<ButtonInput<KeyCode>>,
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
-        mut editor: ResMut<Editor>
+        mut editor: ResMut<Editor>,
     ) {
         if keyboard_input.just_pressed(KeyCode::Quote) {
             state.editor = !state.editor;
@@ -58,7 +60,7 @@ impl Editor {
         window: Single<&Window, With<PrimaryWindow>>,
         q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
         state: Res<State>,
-        time: Res<Time>
+        time: Res<Time>,
     ) {
         if !state.editor {
             return;
@@ -102,15 +104,22 @@ impl Editor {
                     if buttons.pressed(MouseButton::Left) {
                         let v = 1. - d / range as f32;
                         if let Some(cv) = vs.get(xu * (range as usize * 2 + 1) + yu) {
-                            grid_map.set(rx + x, ry + y, cv.lerp(v.max(*cv), 30. * time.delta_secs()));
+                            grid_map.set(
+                                rx + x,
+                                ry + y,
+                                cv.lerp(v.max(*cv), 30. * time.delta_secs()),
+                            );
                         }
                     } else if buttons.pressed(MouseButton::Right) {
                         let v = d / range as f32;
                         if let Some(cv) = vs.get(xu * (range as usize * 2 + 1) + yu) {
-                            grid_map.set(rx + x, ry + y, cv.lerp(v.min(*cv), 30. * time.delta_secs()));
+                            grid_map.set(
+                                rx + x,
+                                ry + y,
+                                cv.lerp(v.min(*cv), 30. * time.delta_secs()),
+                            );
                         }
                     }
-                  
                 }
             }
         }

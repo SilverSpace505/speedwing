@@ -8,7 +8,7 @@ use bevy::{
 };
 use noise::{NoiseFn, Perlin};
 
-use crate::common::in_viewport;
+use crate::common::{GameEntity, in_viewport};
 
 const SHADER_ASSET_PATH: &str = "shaders/grid.wgsl";
 
@@ -515,6 +515,7 @@ impl Grid {
                     })),
                     Transform::from_translation(Vec3::new(self.x, self.y, 0.))
                         .with_scale(Vec3::splat(self.spacing)),
+                    GameEntity,
                 ))
                 .id(),
         );

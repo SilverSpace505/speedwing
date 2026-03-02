@@ -7,11 +7,21 @@ pub struct Velocity(pub Vec3);
 pub struct State {
     pub debug: bool,
     pub moving: bool,
-    pub editor: bool
+    pub editor: bool,
+}
+
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum SceneState {
+    #[default]
+    Menu,
+    Game,
 }
 
 #[derive(Component)]
 pub struct MainCamera;
+
+#[derive(Component)]
+pub struct GameEntity;
 
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct MovementGizmoGroup;

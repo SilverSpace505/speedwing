@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 
 use crate::{
-    common::{MainCamera, State, Velocity, get_threshold},
+    common::{GameEntity, MainCamera, State, Velocity, get_threshold},
     grid_map::GridMap,
 };
 
@@ -34,22 +34,22 @@ impl Player {
             parent.spawn((
                 Sprite {
                     image: asset_server.load("wing.png"),
-                    custom_size: Some(Vec2::new(175., 375.)),
+                    custom_size: Some(Vec2::new(160., 360.)),
                     image_mode: SpriteImageMode::Auto,
                     ..default()
                 },
-                Transform::from_xyz(-77.5, 35., 0.),
+                Transform::from_xyz(-75., 45., 0.),
             ));
 
             parent.spawn((
                 Sprite {
                     image: asset_server.load("wing.png"),
-                    custom_size: Some(Vec2::new(175., 375.)),
+                    custom_size: Some(Vec2::new(160., 360.)),
                     image_mode: SpriteImageMode::Auto,
                     flip_x: true,
                     ..default()
                 },
-                Transform::from_xyz(77.5, 35., 0.),
+                Transform::from_xyz(75., 45., 0.),
             ));
         });
     }
@@ -59,6 +59,7 @@ impl Player {
             Velocity(Vec3::ZERO),
             CursorMove(Vec2::ZERO),
             Transform::from_scale(Vec3::new(0.25, 0.25, 1.)),
+            GameEntity
         )
     }
     pub fn movement(
@@ -169,7 +170,7 @@ impl Player {
             let offset = transform.transform_point(Vec3::new(offset.0, offset.1, 0.));
             if grid_map
                 .get_world(offset.x, offset.y)
-                .is_some_and(|v| v > threshold)
+                .is_some_and(|v| v > threshold + 0.02)
                 && let Some(pnormal) = grid_map.get_normal_world(offset.x, offset.y)
             {
                 normal += Vec3::new(pnormal.0, pnormal.1, 0.);

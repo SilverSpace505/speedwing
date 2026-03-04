@@ -22,6 +22,7 @@ impl Editor {
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
         mut editor: ResMut<Editor>,
+        grid_map: Res<GridMap>,
     ) {
         if keyboard_input.just_pressed(KeyCode::Quote) {
             state.editor = !state.editor;
@@ -53,12 +54,19 @@ impl Editor {
 
         editor.camera_vel = editor.camera_vel.lerp(Vec2::ZERO, time.delta_secs() * 10.);
         camera_transform.translation += editor.camera_vel.extend(0.);
+
+        if keyboard_input.just_pressed(KeyCode::KeyP) {
+            if let Ok(save) = grid_map.save() {
+                println!("{save}");
+            }
+        }
     }
     pub fn handle_mouse(
         mut grid_map: ResMut<GridMap>,
         buttons: Res<ButtonInput<MouseButton>>,
         window: Single<&Window, With<PrimaryWindow>>,
         q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+        keyboard_input: Res<ButtonInput<KeyCode>>,
         state: Res<State>,
         time: Res<Time>,
     ) {
@@ -77,6 +85,14 @@ impl Editor {
         let Ok(world_position) = camera.viewport_to_world_2d(camera_transform, position) else {
             return;
         };
+
+        if keyboard_input.just_pressed(KeyCode::KeyG) {
+            for x in -4..4 {
+                for y in -4..4 {
+                    grid_map.generate(x, y, 42, 0.05, (x as f64, y as f64));
+                }
+            }
+        }
 
         let grid_scale = grid_map.scale();
 

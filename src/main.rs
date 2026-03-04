@@ -8,13 +8,16 @@ mod render;
 
 mod game;
 mod menu;
+mod levels;
+
+mod text_asset;
 
 use bevy::{
     asset::AssetMetaCheck, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution,
 };
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
 
-use crate::{common::SceneState, game::Game, grid::GridMaterial, menu::Menu};
+use crate::{common::{CurrentLevel, SceneState}, game::Game, grid::GridMaterial, levels::Levels, menu::Menu, text_asset::{TextAsset, TextAssetLoader}};
 
 fn main() {
     App::new()
@@ -39,9 +42,14 @@ fn main() {
             Material2dPlugin::<GridMaterial>::default(),
         ))
         //
+        .init_asset::<TextAsset>()
+        .init_asset_loader::<TextAssetLoader>()
+        .insert_resource(CurrentLevel(0, None))
+        //
         .init_state::<SceneState>()
         .add_plugins(Menu)
         .add_plugins(Game)
+        .add_plugins(Levels)
         //
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
         .run();

@@ -1,4 +1,7 @@
-use bevy::{prelude::*, window::{CursorGrabMode, CursorOptions}};
+use bevy::{
+    prelude::*,
+    window::{CursorGrabMode, CursorOptions},
+};
 
 use crate::common::SceneState;
 
@@ -56,7 +59,6 @@ impl Menu {
                             ..default()
                         },
                         BackgroundColor(Color::srgb(0., 0.4, 0.8)),
-                        
                         PlayButton,
                     ))
                     .with_children(|parent| {
@@ -81,7 +83,10 @@ impl Menu {
 struct PlayButton;
 
 fn handle_play_button(
-    mut query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<PlayButton>)>,
+    mut query: Query<
+        (&Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<PlayButton>),
+    >,
     mut next_state: ResMut<NextState<SceneState>>,
     mut cursor_options: Single<&mut CursorOptions>,
 ) {
@@ -90,7 +95,7 @@ fn handle_play_button(
     for (interaction, mut bg) in &mut query {
         match interaction {
             Interaction::Pressed => {
-                next_state.set(SceneState::Game);
+                next_state.set(SceneState::Levels);
             }
             Interaction::Hovered => {
                 *bg = BackgroundColor(Color::srgb(0., 0.5, 0.9));

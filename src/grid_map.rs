@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::{
@@ -244,6 +246,39 @@ impl GridMap {
                 offset.1 * self.grid_size as f64 * scale,
             ),
         );
+    }
+    pub fn save(&self) -> Result<String, serde_json::Error> {
+        let mut ready = HashMap::new();
+        for (coords, grid) in self.grids.iter() {
+            ready.insert(format!("{},{}", coords.0, coords.1), grid.save());
+        }
+        serde_json::to_string(&ready)
+    }
+    pub fn load(&mut self, save: &str) {
+        let Ok(map) = serde_json::from_str::<HashMap<String, String>>(save) else {
+            return;
+        };
+        for (coords, data) in map.iter() {
+            let coords: Vec<Result<i32, ParseIntError>> =
+                coords.split(',').map(|s| s.parse::<i32>()).collect();
+            let Some(Ok(x)) = coords.get(0).cloned() else {
+                continue;
+            };
+            let Some(Ok(y)) = coords.get(1).cloned() else {
+                continue;
+            };
+            let Some(grid) = (match self.grids.get_mut(&(x, y)) {
+                Some(grid) => Some(grid),
+                None => {
+                    let grid = self.create_grid(x, y);
+                    self.grids.insert((x, y), grid);
+                    self.grids.get_mut(&(x, y))
+                }
+            }) else {
+                continue;
+            };
+            grid.load(data);
+        }
     }
 }
 

@@ -17,3 +17,5 @@ The game is deployed on https://speedwing.silverspace.io
 - WASD to move camera
 - Left button to create
 - Right button to destroy
+- P to save to console
+- G to generate map

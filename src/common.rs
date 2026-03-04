@@ -10,10 +10,14 @@ pub struct State {
     pub editor: bool,
 }
 
+#[derive(Resource)]
+pub struct CurrentLevel(pub u32, pub Option<String>);
+
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum SceneState {
     #[default]
     Menu,
+    Levels,
     Game,
 }
 

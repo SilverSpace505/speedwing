@@ -1,7 +1,7 @@
 
 use bevy::prelude::*;
 
-use crate::common::{GameEntity, MainCamera, MovementGizmoGroup, SceneState, State};
+use crate::common::{CurrentLevel, GameEntity, MainCamera, MovementGizmoGroup, SceneState, State};
 use crate::editor::Editor;
 use crate::grid_map::{GridMap, manage_meshes};
 use crate::input::{handle_cursor_lock, handle_mouse_movement, touch_system};
@@ -44,6 +44,7 @@ impl Game {
     fn setup(
         mut commands: Commands,
         asset_server: Res<AssetServer>,
+        current_level: Res<CurrentLevel>,
         // mut meshes: ResMut<Assets<Mesh>>,
         // mut materials: ResMut<Assets<ColorMaterial>>,
     ) {
@@ -52,6 +53,11 @@ impl Game {
         commands.spawn((Camera2d::default(), MainCamera, GameEntity));
 
         Player::spawn(&mut commands, &asset_server);
+
+        if let Some(text) = &current_level.1 {
+            grid_map.load(text);
+        }
+        
 
         // commands
         //     .spawn((
@@ -117,11 +123,11 @@ impl Game {
         //     GameEntity,
         // ));
 
-        for x in -4..4 {
-            for y in -4..4 {
-                grid_map.generate(x, y, 42, 0.05, (x as f64, y as f64));
-            }
-        }
+        // for x in -4..4 {
+        //     for y in -4..4 {
+        //         grid_map.generate(x, y, 42, 0.05, (x as f64, y as f64));
+        //     }
+        // }
 
         commands.insert_resource(grid_map);
         commands.insert_resource(State {

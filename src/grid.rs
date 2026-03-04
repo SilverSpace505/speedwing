@@ -1,3 +1,4 @@
+use base64::{Engine, engine::general_purpose::STANDARD};
 use bevy::{
     asset::RenderAssetUsages,
     mesh::{Indices, MeshVertexAttribute, VertexFormat},
@@ -210,6 +211,8 @@ impl Grid {
                 self.set(x, y, nv.powf(2.) as f32);
             }
         }
+
+        self.changed = true;
     }
 
     pub fn gen_segments(&self, threshold: f32, smooth: bool) -> Vec<((f32, f32), (f32, f32))> {
@@ -559,5 +562,24 @@ impl Grid {
                 camera,
                 camera_transform,
             )
+    }
+    pub fn save(&self) -> String {
+        let bytes: Vec<u8> = self.data.iter().flat_map(|f| f.to_le_bytes()).collect();
+        STANDARD.encode(bytes)
+    }
+    pub fn load(&mut self, save: &str) {
+        let Ok(bytes) = STANDARD.decode(save) else {
+            return;
+        };
+        let decoded: Vec<f32> = bytes
+            .chunks_exact(4)
+            .map(|b| match b.try_into() {
+                Ok(b) => f32::from_le_bytes(b),
+                Err(_) => 0.,
+            })
+            .collect();
+
+        self.data = decoded;
+        self.changed = true;
     }
 }

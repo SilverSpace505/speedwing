@@ -64,6 +64,15 @@ pub fn render_movement(
             Color::linear_rgba(0., 1., 0., velocity.0.length() / 1000.),
         );
 
+        draw_arrow(
+            &mut movement_gizmos,
+            pos.translation.xy(),
+            -cursor_move.0.normalize_or_zero() * player.raycast,
+            10.,
+            cursor_move.0.normalize_or_zero().length() * player.raycast / 500.,
+            Color::linear_rgba(0.2, 0.25, 0.8, 0.8)
+        );
+
         player.draw_points(&mut gizmos, &pos);
     }
 }

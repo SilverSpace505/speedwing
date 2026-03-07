@@ -1,15 +1,20 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use rand::RngExt;
 
 use crate::{
     common::{GameEntity, MainCamera, State, Velocity, get_threshold},
     grid_map::GridMap,
+    particles::Particles,
+    raycast::Raycaster,
 };
 
 #[derive(Component)]
 pub struct Player {
     pub normal: Vec2,
+    pub raycast: f32,
+    pub particles: f32,
 }
 
 const POINTS: [(f32, f32); 6] = [
@@ -55,11 +60,15 @@ impl Player {
     }
     fn bundle() -> impl Bundle {
         (
-            Self { normal: Vec2::ZERO },
+            Self {
+                normal: Vec2::ZERO,
+                raycast: 0.,
+                particles: 0.,
+            },
             Velocity(Vec3::ZERO),
             CursorMove(Vec2::ZERO),
-            Transform::from_scale(Vec3::new(0.25, 0.25, 1.)),
-            GameEntity
+            Transform::from_scale(Vec3::new(0.25, 0.25, 1.)).with_translation(Vec3::new(0., 0., 1.)),
+            GameEntity,
         )
     }
     pub fn movement(
@@ -68,25 +77,8 @@ impl Player {
         time: Res<Time>,
         grid_map: Res<GridMap>,
         mut state: ResMut<State>,
+        mut particles: ResMut<Particles>,
     ) {
-        // grid.generate(
-        //     42,
-        //     0.05,
-        //     match state.moving {
-        //         true => (
-        //             (time.elapsed_secs() / 5.).into(),
-        //             (time.elapsed_secs() / 10.).into(),
-        //         ),
-        //         false => (0., 0.),
-        //     },
-        // );
-        // if state.moving {
-        //     grid.set_mesh(
-        //         &mut meshes,
-        //         grid.gen_attributes(get_threshold(time.elapsed_secs(), &state), true),
-        //     );
-        // }
-
         let Ok((mut player, mut velocity, cursor_move, transform)) = query.single_mut() else {
             return;
         };
@@ -97,11 +89,76 @@ impl Player {
             player.normal = Vec2::new(normal.0, normal.1);
         }
 
-        let acceleration = 2000.0;
-        let max_speed = 1000.0;
-        let mut friction: f32 = 0.99;
+        let acceleration = 300.0;
+        let mut friction: f32 = 0.995;
 
-        // let editor = state.editor;
+        let max_distance = 75.;
+
+        let angle_size = PI / 4.;
+        let dir = -cursor_move.0.normalize_or_zero();
+        let orig_angle = dir.to_angle();
+        let mut distance: f32 = max_distance;
+        for angle in -2..2 {
+            let dir = Vec2::from_angle(orig_angle + angle as f32 * angle_size);
+            distance = distance.min(Raycaster::raycast(
+                &grid_map,
+                transform.translation.xy(),
+                dir,
+                max_distance,
+                1.,
+            ));
+        }
+
+        player.raycast = distance;
+
+        let distance = (distance / max_distance).powi(4);
+
+        let speed_mul = 1. + (1. - distance) * 5.;
+
+        player.particles += velocity.0.length() / 10. * time.delta_secs();
+        while player.particles >= 2. {
+            let mut rng = rand::rng();
+            let spread = 0.3;
+            let spread_size = 5.;
+            let sc = 0.1;
+            let sl = 0.5;
+
+            let off = Vec2::new(50., -70.);
+
+            let dir = Vec2::from_angle(orig_angle + PI/8.);
+            particles.spawn(
+                transform.transform_point(Vec3::new(off.x, off.y, 0.)).xy(),
+                (dir + Vec2::new(
+                    rng.random_range(-spread..spread),
+                    rng.random_range(-spread..spread),
+                )) * velocity.0.length().powf(0.5) * 10.,
+                Color::linear_rgb(
+                    0.05 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                    0.35 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                    0.7 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                ),
+                (1. + rng.random_range(-spread_size..spread_size)) * (velocity.0.length() / 50.).powf(0.5),
+                (2. + rng.random_range(-sl..sl)) * (1. - distance + 0.2),
+            );
+
+            let dir = Vec2::from_angle(orig_angle - PI/8.);
+           particles.spawn(
+                transform.transform_point(Vec3::new(-off.x, off.y, 0.)).xy(),
+                (dir + Vec2::new(
+                    rng.random_range(-spread..spread),
+                    rng.random_range(-spread..spread),
+                )) * velocity.0.length().powf(0.5) * 10.,
+                Color::linear_rgb(
+                    0.05 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                    0.35 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                    0.7 + rng.random_range(-sc..sc) + (1. - distance) * 0.1,
+                ),
+                (1. + rng.random_range(-spread_size..spread_size)) * (velocity.0.length() / 50.).powf(0.5),
+                (2. + rng.random_range(-sl..sl)) * (1. - distance + 0.2),
+            );
+
+            player.particles -= 2.;
+        }
 
         let mut direction = Vec3::ZERO;
         if cursor_move.0.length() >= 0.1 {
@@ -110,54 +167,15 @@ impl Player {
             friction = 0.95;
         }
 
-        // if keyboard_input.pressed(KeyCode::KeyW) && !editor {
-        //     direction.y += 1.0;
-        // }
-        // if keyboard_input.pressed(KeyCode::KeyS) && !editor {
-        //     direction.y -= 1.0;
-        // }
-
-        // if keyboard_input.pressed(KeyCode::KeyD) && !editor {
-        //     direction.x += 1.0;
-        // }
-        // if keyboard_input.pressed(KeyCode::KeyA) && !editor {
-        //     direction.x -= 1.0;
-        // }
-
         if keyboard_input.just_pressed(KeyCode::Semicolon) {
             state.debug = !state.debug;
         }
 
-        if keyboard_input.just_pressed(KeyCode::KeyM) {
-            state.moving = !state.moving;
-            // if !state.moving {
-            //     grid.generate(
-            //         42,
-            //         0.05,
-            //         match state.moving {
-            //             true => (
-            //                 (time.elapsed_secs() / 5.).into(),
-            //                 (time.elapsed_secs() / 10.).into(),
-            //             ),
-            //             false => (0., 0.),
-            //         },
-            //     );
-            //     grid.set_mesh(
-            //         &mut meshes,
-            //         grid.gen_attributes(get_threshold(time.elapsed_secs(), &state), true),
-            //     );
-            // }
-        }
-
         if direction.length() > 0.0 {
-            velocity.0 += direction * acceleration * time.delta_secs();
+            velocity.0 += direction * acceleration * speed_mul * time.delta_secs();
         }
 
         velocity.0 *= friction.powf(time.delta_secs() * 100.);
-
-        if velocity.0.length() > max_speed {
-            velocity.0 = velocity.0.normalize() * max_speed;
-        }
     }
     fn is_colliding(
         &self,
@@ -185,9 +203,8 @@ impl Player {
         mut query: Query<(&Player, &mut Transform, &mut Velocity, &CursorMove)>,
         time: Res<Time>,
         grid_map: Res<GridMap>,
-        state: Res<State>,
     ) {
-        let threshold = get_threshold(time.elapsed_secs(), &state);
+        let threshold = get_threshold();
         let Ok((player, mut transform, mut velocity, cursor_move)) = query.single_mut() else {
             return;
         };

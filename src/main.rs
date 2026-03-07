@@ -11,13 +11,15 @@ mod menu;
 mod levels;
 
 mod text_asset;
+mod raycast;
+mod particles;
 
 use bevy::{
     asset::AssetMetaCheck, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution,
 };
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
 
-use crate::{common::{CurrentLevel, SceneState}, game::Game, grid::GridMaterial, levels::Levels, menu::Menu, text_asset::{TextAsset, TextAssetLoader}};
+use crate::{common::{CurrentLevel, SceneState}, game::Game, grid::GridMaterial, levels::Levels, menu::Menu, particles::ParticlesMaterial, text_asset::{TextAsset, TextAssetLoader}};
 
 fn main() {
     App::new()
@@ -40,6 +42,7 @@ fn main() {
         .add_plugins((
             FixPointerUnlockPlugin,
             Material2dPlugin::<GridMaterial>::default(),
+            Material2dPlugin::<ParticlesMaterial>::default(),
         ))
         //
         .init_asset::<TextAsset>()

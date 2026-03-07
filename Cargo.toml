@@ -7,12 +7,14 @@ edition = "2024"
 base64 = "0.22.1"
 bevy_fix_cursor_unlock_web = "0.3.0"
 noise = "0.9.0"
+rand = "0.10.0"
 serde_json = "1.0.149"
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [dependencies.bevy]
 version = "0.18.0"
 default-features = false
-features = ["2d", "webgpu"]
+features = ["2d", "webgpu", "bevy_debug_stepping"]
 
 [profile.dev]
 opt-level = 1

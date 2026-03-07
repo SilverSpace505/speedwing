@@ -5,6 +5,7 @@ use crate::common::{CurrentLevel, GameEntity, MainCamera, MovementGizmoGroup, Sc
 use crate::editor::Editor;
 use crate::grid_map::{GridMap, manage_meshes};
 use crate::input::{handle_cursor_lock, handle_mouse_movement, touch_system};
+use crate::particles::{Particles, ParticlesMaterial};
 use crate::player::Player;
 use crate::render::{configure_gizmos, draw_dots, render_movement, update_gizmo_config};
 
@@ -27,6 +28,8 @@ impl Plugin for Game {
                     handle_mouse_movement,
                     Editor::update,
                     Editor::handle_mouse,
+                    // particles
+                    Particles::update,
                     // render
                     manage_meshes,
                     draw_dots,
@@ -45,8 +48,8 @@ impl Game {
         mut commands: Commands,
         asset_server: Res<AssetServer>,
         current_level: Res<CurrentLevel>,
-        // mut meshes: ResMut<Assets<Mesh>>,
-        // mut materials: ResMut<Assets<ColorMaterial>>,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<ParticlesMaterial>>
     ) {
         let mut grid_map = GridMap::new(10., 16, 0.5, true);
 
@@ -57,82 +60,13 @@ impl Game {
         if let Some(text) = &current_level.1 {
             grid_map.load(text);
         }
-        
 
-        // commands
-        //     .spawn((
-        //         Node {
-        //             width: Val::Percent(100.0),
-        //             height: Val::Px(100.0),
-        //             justify_content: JustifyContent::Center,
-        //             align_items: AlignItems::Center,
-        //             ..default()
-        //         },
-        //         GameEntity,
-        //     ))
-        //     .with_children(|parent| {
-        //         parent.spawn((
-        //             Text::new("Speedwing"),
-        //             TextFont {
-        //                 font_size: 25.0,
-        //                 ..default()
-        //             },
-        //             TextColor(Color::WHITE),
-        //             GameEntity,
-        //         ));
-        //     });
+        let particles = Particles::spawn_cmd(&mut commands, &mut meshes, &mut materials);
 
-        // let positions = vec![
-        //     [0.0, 0.0, 0.0],
-        //     [100.0, 0.0, 0.0],
-        //     [50.0, 100.0, 0.0],
-        //     [100.0, 0.0, 0.0],
-        //     [200.0, 0.0, 0.0],
-        //     [150.0, 100.0, 0.0],
-        //     [200.0, 0.0, 0.0],
-        //     [300.0, 0.0, 0.0],
-        //     [250.0, 100.0, 0.0],
-        // ];
-
-        // let colours = vec![
-        //     [1.0, 0.0, 0.0, 1.0],
-        //     [1.0, 0.0, 0.0, 1.0],
-        //     [1.0, 0.0, 0.0, 1.0],
-        //     [0.0, 1.0, 0.0, 1.0],
-        //     [0.0, 1.0, 0.0, 1.0],
-        //     [0.0, 1.0, 0.0, 1.0],
-        //     [0.0, 0.0, 1.0, 1.0],
-        //     [0.0, 0.0, 1.0, 1.0],
-        //     [0.0, 0.0, 1.0, 1.0],
-        // ];
-
-        // let indices = Indices::U32(vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
-
-        // let mut mesh = Mesh::new(
-        //     bevy::mesh::PrimitiveTopology::TriangleList,
-        //     RenderAssetUsages::default(),
-        // );
-        // mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        // mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
-        // mesh.insert_indices(indices);
-
-        // commands.spawn((
-        //     Mesh2d(meshes.add(mesh)),
-        //     MeshMaterial2d(materials.add(Color::from(WHITE))),
-        //     Transform::default(),
-        //     GameEntity,
-        // ));
-
-        // for x in -4..4 {
-        //     for y in -4..4 {
-        //         grid_map.generate(x, y, 42, 0.05, (x as f64, y as f64));
-        //     }
-        // }
-
+        commands.insert_resource(particles);
         commands.insert_resource(grid_map);
         commands.insert_resource(State {
             debug: false,
-            moving: false,
             editor: false,
         });
         commands.insert_resource(Editor::new());
@@ -145,6 +79,7 @@ impl Game {
         commands.remove_resource::<GridMap>();
         commands.remove_resource::<State>();
         commands.remove_resource::<Editor>();
+        commands.remove_resource::<Particles>();
     }
 }
 

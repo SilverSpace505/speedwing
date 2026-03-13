@@ -7,19 +7,28 @@ mod player;
 mod render;
 
 mod game;
-mod menu;
 mod levels;
+mod menu;
 
-mod text_asset;
-mod raycast;
 mod particles;
+mod raycast;
+mod text_asset;
 
 use bevy::{
     asset::AssetMetaCheck, prelude::*, sprite_render::Material2dPlugin, window::WindowResolution,
 };
 use bevy_fix_cursor_unlock_web::FixPointerUnlockPlugin;
+use bevy_transform_interpolation::prelude::TransformInterpolationPlugin;
 
-use crate::{common::{CurrentLevel, SceneState}, game::Game, grid::GridMaterial, levels::Levels, menu::Menu, particles::ParticlesMaterial, text_asset::{TextAsset, TextAssetLoader}};
+use crate::{
+    common::{CurrentLevel, LevelData, SceneState},
+    game::Game,
+    grid::GridMaterial,
+    levels::Levels,
+    menu::Menu,
+    particles::ParticlesMaterial,
+    text_asset::{TextAsset, TextAssetLoader},
+};
 
 fn main() {
     App::new()
@@ -41,13 +50,21 @@ fn main() {
         )
         .add_plugins((
             FixPointerUnlockPlugin,
+            TransformInterpolationPlugin::default(),
             Material2dPlugin::<GridMaterial>::default(),
             Material2dPlugin::<ParticlesMaterial>::default(),
         ))
         //
         .init_asset::<TextAsset>()
         .init_asset_loader::<TextAssetLoader>()
-        .insert_resource(CurrentLevel(0, None))
+        .insert_resource(CurrentLevel(
+            0,
+            LevelData {
+                level: None,
+                start: [0., 0., 0.],
+                end: None,
+            },
+        ))
         //
         .init_state::<SceneState>()
         .add_plugins(Menu)
@@ -55,5 +72,6 @@ fn main() {
         .add_plugins(Levels)
         //
         .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
+        .insert_resource(Time::<Fixed>::from_hz(100.))
         .run();
 }

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    common::{MainCamera, MovementGizmoGroup, State, Velocity},
+    common::{CurrentLevel, FinishGizmoGroup, MainCamera, MovementGizmoGroup, State, Velocity},
     grid_map::GridMap,
     player::{CursorMove, Player},
 };
@@ -9,6 +9,9 @@ use crate::{
 pub fn configure_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
     let (config, _) = config_store.config_mut::<MovementGizmoGroup>();
     config.line.width = 8.;
+
+    let (config, _) = config_store.config_mut::<FinishGizmoGroup>();
+    config.line.width = 10.;
 
     let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
     config.line.width = 2.;
@@ -70,7 +73,7 @@ pub fn render_movement(
             -cursor_move.0.normalize_or_zero() * player.raycast,
             10.,
             cursor_move.0.normalize_or_zero().length() * player.raycast / 500.,
-            Color::linear_rgba(0.2, 0.25, 0.8, 0.8)
+            Color::linear_rgba(0.2, 0.25, 0.8, 0.8),
         );
 
         player.draw_points(&mut gizmos, &pos);
@@ -115,4 +118,19 @@ pub fn draw_dots(
         grid_map.draw_segments(&mut gizmos, camera, camera_transform);
         grid_map.draw_borders(&mut gizmos, camera, camera_transform);
     }
+}
+
+pub fn render_finish(
+    mut gizmos: Gizmos<FinishGizmoGroup>,
+    current_level: Res<CurrentLevel>,
+) {
+    let Some(end) = current_level.1.end else {
+        return;
+    };
+
+    gizmos.line_2d(
+        Vec2::from_array(end[0]),
+        Vec2::from_array(end[1]),
+        Color::linear_rgba(0., 1., 0., 0.8),
+    );
 }

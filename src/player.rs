@@ -1,10 +1,11 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use bevy_transform_interpolation::prelude::TransformInterpolation;
 use rand::RngExt;
 
 use crate::{
-    common::{GameEntity, MainCamera, State, Velocity, get_threshold},
+    common::{GameEntity, MainCamera, State, TimeState, Velocity, get_threshold},
     grid_map::GridMap,
     particles::Particles,
     raycast::Raycaster,
@@ -27,8 +28,8 @@ const POINTS: [(f32, f32); 6] = [
 ];
 
 impl Player {
-    pub fn spawn(commands: &mut Commands<'_, '_>, asset_server: &Res<AssetServer>) {
-        commands.spawn(Player::bundle()).with_children(|parent| {
+    pub fn spawn(x: f32, y: f32, angle: f32, commands: &mut Commands<'_, '_>, asset_server: &Res<AssetServer>) {
+        commands.spawn(Player::bundle(x, y, angle)).with_children(|parent| {
             parent.spawn(Sprite {
                 image: asset_server.load("orb.png"),
                 custom_size: Some(Vec2::new(100., 100.)),
@@ -58,7 +59,7 @@ impl Player {
             ));
         });
     }
-    fn bundle() -> impl Bundle {
+    fn bundle(x: f32, y: f32, angle: f32) -> impl Bundle {
         (
             Self {
                 normal: Vec2::ZERO,
@@ -67,17 +68,17 @@ impl Player {
             },
             Velocity(Vec3::ZERO),
             CursorMove(Vec2::ZERO),
-            Transform::from_scale(Vec3::new(0.25, 0.25, 1.)).with_translation(Vec3::new(0., 0., 1.)),
+            Transform::from_scale(Vec3::new(0.25, 0.25, 1.)).with_translation(Vec3::new(x, y, 1.)).with_rotation(Quat::from_axis_angle(Vec3::new(0., 0., 1.), angle)),
             GameEntity,
+            TransformInterpolation
         )
     }
     pub fn movement(
-        keyboard_input: Res<ButtonInput<KeyCode>>,
         mut query: Query<(&mut Player, &mut Velocity, &CursorMove, &Transform), With<Player>>,
         time: Res<Time>,
         grid_map: Res<GridMap>,
-        mut state: ResMut<State>,
         mut particles: ResMut<Particles>,
+        state: Res<State>
     ) {
         let Ok((mut player, mut velocity, cursor_move, transform)) = query.single_mut() else {
             return;
@@ -163,12 +164,11 @@ impl Player {
         let mut direction = Vec3::ZERO;
         if cursor_move.0.length() >= 0.1 {
             direction += cursor_move.0.extend(0.);
-        } else {
-            friction = 0.95;
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Semicolon) {
-            state.debug = !state.debug;
+        } else if !matches!(state.time, TimeState::Finished(_)) {
+            friction = match state.time {
+                TimeState::Finished(_) => 0.97,
+                _ => 0.95
+            };
         }
 
         if direction.length() > 0.0 {
@@ -198,6 +198,13 @@ impl Player {
             true => Some(normal.normalize_or_zero()),
             false => None,
         }
+    }
+    pub fn get_points(transform: &Transform) -> Vec<Vec2> {
+        let mut points = Vec::new();
+        for offset in POINTS {
+            points.push(transform.transform_point(Vec3::new(offset.0, offset.1, 0.)).xy());
+        }
+        points
     }
     pub fn apply_velocity(
         mut query: Query<(&Player, &mut Transform, &mut Velocity, &CursorMove)>,
@@ -244,7 +251,7 @@ impl Player {
         player_query: Query<(&Transform, &Velocity), (With<Player>, Without<MainCamera>)>,
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
-        state: Res<State>,
+        mut state: ResMut<State>,
     ) {
         if state.editor {
             return;
@@ -257,14 +264,19 @@ impl Player {
             return;
         };
 
+        state.follow = state.follow.lerp(match state.time {
+            TimeState::Finished(_) => 0.,
+            _ => 1.
+        }, 1. - 0.01_f32.powf(time.delta_secs()));
+
         camera_transform.translation = camera_transform.translation.lerp(
             player_transform.translation,
-            1. - 0.01_f32.powf(time.delta_secs() * 3.),
+            (1. - 0.01_f32.powf(time.delta_secs() * 3.)) * state.follow,
         );
 
         camera_transform.scale = camera_transform.scale.lerp(
             Vec3::splat(1. + 0.0002 * velocity.0.length()),
-            1. - 0.01_f32.powf(time.delta_secs()),
+            (1. - 0.01_f32.powf(time.delta_secs())) * state.follow,
         );
     }
     pub fn draw_points(&self, gizmos: &mut Gizmos, transform: &Transform) {

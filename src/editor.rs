@@ -1,28 +1,37 @@
+#[cfg(not(target_arch = "wasm32"))]
+use arboard::Clipboard;
+
 use bevy::{prelude::*, window::PrimaryWindow};
 
 use crate::{
-    common::{MainCamera, State},
+    common::{CurrentLevel, LevelData, MainCamera, State},
     grid_map::GridMap,
 };
+
+enum EndPhase {
+    Start,
+    End(Vec2),
+}
 
 #[derive(Resource)]
 pub struct Editor {
     camera_vel: Vec2,
+    end_phase: EndPhase,
 }
 
 impl Editor {
     pub fn new() -> Self {
         Self {
             camera_vel: Vec2::ZERO,
+            end_phase: EndPhase::Start,
         }
     }
-    pub fn update(
+    pub fn camera_movement(
         mut state: ResMut<State>,
         keyboard_input: Res<ButtonInput<KeyCode>>,
         mut camera_query: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
         mut editor: ResMut<Editor>,
-        grid_map: Res<GridMap>,
     ) {
         if keyboard_input.just_pressed(KeyCode::Quote) {
             state.editor = !state.editor;
@@ -36,7 +45,7 @@ impl Editor {
             return;
         };
 
-        let camera_speed = 75.;
+        let camera_speed = 7500.;
 
         if keyboard_input.pressed(KeyCode::KeyW) {
             editor.camera_vel.y += camera_speed * time.delta_secs();
@@ -53,14 +62,9 @@ impl Editor {
         }
 
         editor.camera_vel = editor.camera_vel.lerp(Vec2::ZERO, time.delta_secs() * 10.);
-        camera_transform.translation += editor.camera_vel.extend(0.);
-
-        if keyboard_input.just_pressed(KeyCode::KeyP) {
-            if let Ok(save) = grid_map.save() {
-                println!("{save}");
-            }
-        }
+        camera_transform.translation += editor.camera_vel.extend(0.) * time.delta_secs();
     }
+
     pub fn handle_mouse(
         mut grid_map: ResMut<GridMap>,
         buttons: Res<ButtonInput<MouseButton>>,
@@ -69,6 +73,8 @@ impl Editor {
         keyboard_input: Res<ButtonInput<KeyCode>>,
         state: Res<State>,
         time: Res<Time>,
+        mut editor: ResMut<Editor>,
+        mut current_level: ResMut<CurrentLevel>,
     ) {
         if !state.editor {
             return;
@@ -94,6 +100,56 @@ impl Editor {
             }
         }
 
+        if keyboard_input.pressed(KeyCode::ShiftLeft) {
+            Editor::modify_start_end(&buttons, &mut editor, &mut current_level, &world_position);
+        } else {
+            Editor::modify_level(&mut grid_map, &world_position, &buttons, &time);
+        }
+
+        if keyboard_input.just_pressed(KeyCode::KeyP) {
+            let data = LevelData {
+                level: grid_map.save().ok(),
+                start: current_level.1.start,
+                end: current_level.1.end,
+            };
+
+            if let Ok(save) = serde_json::to_string(&data) {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Ok(clipboard) = &mut Clipboard::new() {
+                    clipboard.set_text(&save).ok();
+                }
+                
+                info!(save);
+            }
+        }
+    }
+
+    pub fn modify_start_end(
+        buttons: &ButtonInput<MouseButton>,
+        editor: &mut Editor,
+        current_level: &mut CurrentLevel,
+        world_position: &Vec2,
+    ) {
+        if buttons.just_pressed(MouseButton::Left) {
+            current_level.1.start = [world_position.x, world_position.y, 0.];
+        }
+        if buttons.just_pressed(MouseButton::Right) {
+            match editor.end_phase {
+                EndPhase::Start => editor.end_phase = EndPhase::End(world_position.clone()),
+                EndPhase::End(start) => {
+                    current_level.1.end =
+                        Some([[start.x, start.y], [world_position.x, world_position.y]]);
+                    editor.end_phase = EndPhase::Start
+                }
+            }
+        }
+    }
+    pub fn modify_level(
+        grid_map: &mut GridMap,
+        world_position: &Vec2,
+        buttons: &ButtonInput<MouseButton>,
+        time: &Time,
+    ) {
         let grid_scale = grid_map.scale();
 
         if buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Right) {
@@ -137,6 +193,53 @@ impl Editor {
                         }
                     }
                 }
+            }
+        }
+    }
+    pub fn render(
+        mut gizmos: Gizmos,
+        current_level: Res<CurrentLevel>,
+        state: Res<State>,
+        editor: Res<Editor>,
+        window: Single<&Window, With<PrimaryWindow>>,
+        q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    ) {
+        if !state.editor {
+            return;
+        }
+
+        let level_data = &current_level.1;
+
+        gizmos.circle_2d(
+            Vec2::new(level_data.start[0], level_data.start[1]),
+            5.,
+            Color::linear_rgba(0., 1., 0., 0.8),
+        );
+
+        match editor.end_phase {
+            EndPhase::Start => {
+                if let Some(end) = level_data.end {
+                    gizmos.line_2d(
+                        Vec2::new(end[0][0], end[0][1]),
+                        Vec2::new(end[1][0], end[1][1]),
+                        Color::linear_rgba(1., 0., 0., 0.8),
+                    );
+                }
+            }
+            EndPhase::End(start) => {
+                let Ok((camera, camera_transform)) = q_camera.single() else {
+                    return;
+                };
+
+                let Some(position) = window.cursor_position() else {
+                    return;
+                };
+
+                let Ok(world_position) = camera.viewport_to_world_2d(camera_transform, position)
+                else {
+                    return;
+                };
+                gizmos.line_2d(start, world_position, Color::linear_rgba(1., 0., 0., 0.8));
             }
         }
     }

@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    common::{CurrentLevel, SceneState},
+    common::{CurrentLevel, LevelData, SceneState},
     text_asset::TextAsset,
 };
 
@@ -168,7 +168,15 @@ fn check_load(
         return;
     };
     if let Some(text) = text_assets.get(&handle.0) {
-        current_level.1 = Some(text.0.clone());
+        if let Ok(data) = serde_json::from_str::<LevelData>(&text.0) {
+            current_level.1 = data
+        } else {
+            current_level.1 = LevelData {
+                level: None,
+                start: [0., 0., 0.],
+                end: None
+            }
+        }
         next_state.set(SceneState::Game);
     }
 }

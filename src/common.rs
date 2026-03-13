@@ -1,16 +1,26 @@
 use bevy::{math::bool, prelude::*};
+use serde::{Deserialize, Serialize};
 
 #[derive(Component)]
 pub struct Velocity(pub Vec3);
 
 #[derive(Resource)]
-pub struct State {
-    pub debug: bool,
-    pub editor: bool,
+pub enum TimeState {
+    Finished(f32),
+    Timing(f32),
+    None
 }
 
 #[derive(Resource)]
-pub struct CurrentLevel(pub u32, pub Option<String>);
+pub struct State {
+    pub debug: bool,
+    pub editor: bool,
+    pub time: TimeState,
+    pub follow: f32
+}
+
+#[derive(Resource)]
+pub struct CurrentLevel(pub u32, pub LevelData);
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum SceneState {
@@ -28,6 +38,16 @@ pub struct GameEntity;
 
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct MovementGizmoGroup;
+
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub struct FinishGizmoGroup;
+
+#[derive(Serialize, Deserialize)]
+pub struct LevelData {
+    pub level: Option<String>,
+    pub start: [f32; 3],
+    pub end: Option<[[f32; 2]; 2]>
+}
 
 pub fn get_threshold() -> f32 {
    0.5
@@ -53,4 +73,18 @@ pub fn in_viewport(point: Vec2, camera: &Camera, camera_transform: &GlobalTransf
         }
     }
     false
+}
+
+fn dist_to_segment_squared(p: Vec2, v: Vec2, w: Vec2) -> f32 {
+    let l2 = v.distance_squared(w);
+    if l2 == 0. {
+        return p.distance_squared(v);
+    }
+
+    let t = ((p - v).dot(w - v) / l2).clamp(0., 1.);
+    p.distance_squared(v + t * (w - v))
+}
+
+pub fn dist_to_segment(p: Vec2, v: Vec2, w: Vec2) -> f32 {
+    dist_to_segment_squared(p, v, w).sqrt()
 }
